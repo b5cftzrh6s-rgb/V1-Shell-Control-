@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shell Control Correlation Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: system-ui, sans-serif; background:#0a0a0a; color:#fff; padding:16px; }
+        .container { max-width:1400px; margin:auto; }
+        .card { background:#111; border-radius:16px; padding:20px; margin-bottom:20px; border:1px solid #222; }
+        .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; }
+        .metric { background:#1a1a1a; border-radius:12px; padding:14px; text-align:center; }
+        .metric-value { font-size:22px; font-weight:700; color:#00d4ff; }
+        button { background:#00d4ff; color:#000; border:none; padding:12px 24px; border-radius:9999px; font-weight:600; cursor:pointer; }
+        button.secondary { background:#333; color:#fff; }
+        select, input { width:100%; padding:10px; background:#1a1a1a; color:#fff; border:1px solid #333; border-radius:8px; }
+        .section-title { color:#00d4ff; font-weight:600; margin:0 0 12px; }
+        table { width:100%; border-collapse:collapse; background:#1a1a1a; }
+        th, td { padding:10px 12px; text-align:left; border-bottom:1px solid #333; }
+        th { background:#222; color:#00d4ff; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 style="background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Shell Control Correlation Tool</h1>
+    <p style="color:#888; margin:4px 0 20px;">Definable Shifts • Cup Selection • Sensor Limits Filter • cSt Trend + Std Dev</p>
+
+    <div class="card">
+        <h3 class="section-title">📤 Upload Raw Export CSV</h3>
+        <input type="file" id="fileInput" accept=".csv" style="width:100%; margin-bottom:16px;">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+            <div><label>Date/Time Column</label><select id="dateCol"></select></div>
+            <div><label>Manual Viscosity (Zahn seconds)</label><select id="manualCol"></select></div>
+            <div><label>Sensor Viscosity (cP)</label><select id="sensorCol"></select></div>
+        </div>
+
+        <div style="margin-top:16px;">
+            <label style="font-weight:600; color:#00d4ff;">Cup Type</label>
+            <select id="cupType">
+                <option value="EZ-Zahn4">EZ-Zahn4</option>
+                <option value="EZ-Zahn5">EZ-Zahn5</option>
+                <option value="ISO6">ISO6</option>
+                <option value="ISO8">ISO8</option>
+                <option value="ISO6_MINI">ISO6_MINI</option>
+                <option value="ISO8_MINI">ISO8_MINI</option>
+            </select>
+        </div>
+
+        <button onclick="runInitialAnalysis()" style="width:100%; margin-top:20px;">🚀 Run Initial Analysis</button>
+    </div>
+
+    <div class="card">
+        <h3 class="section-title">🕒 Shift Definitions (User Editable)</h3>
+        <div id="shiftDefs" style="display:grid; gap:10px;"></div>
+        <div style="margin-top:12px; display:flex; gap:12px;">
+            <button onclick="assignShifts()" style="flex:1;">Assign Shifts &amp; Refresh All</button>
+            <button onclick="resetShifts()" class="secondary" style="flex:0.5;">Reset Defaults</button>
+        </div>
+    </div>
+
+    <div id="resultsSection" style="display:none;">
+        <div class="card">
+            <h3 class="section-title">📊 Overall Results</h3>
+            <div class="metrics" id="overallMetrics"></div>
+        </div>
+
+        <div id="perShiftResults"></div>
+
+        <div class="card">
+            <h3 class="section-title">📈 Interactive: Manual Cup Seconds vs Sensor cP</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cupVsSensorChart" height="130"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="section-title">📈 Calculated cSt vs Sensor cP Trend (by Shift)</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cstVsSensorChart" height="120"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="section-title">🔍 Filter Outliers — Sensor Limits</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <div>
+                    <label>Min Sensor cP</label>
+                    <input type="number" id="minSensor" value="200" step="1">
+                </div>
+                <div>
+                    <label>Max Sensor cP</label>
+                    <input type="number" id="maxSensor" value="400" step="1">
+                </div>
+            </div>
+            <button onclick="applySensorLimits()" style="width:100%;">Apply Sensor Limits &amp; Refresh Charts</button>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 class="section-title" style="margin:0;">📋 Analyzed Data</h3>
+                <button onclick="downloadCSV()" style="padding:8px 18px; font-size:14px;">📥 Download CSV</button>
+            </div>
+            <div style="max-height:420px; overflow:auto;">
+                <table id="dataTable"><thead></thead><tbody></tbody></table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+console.log("Shell Control Correlation Tool Loaded");
+</script>
+</body>
+</html>
