@@ -29,6 +29,9 @@
         .stat-label { color:#aaa; }
         .stat-value { font-weight:600; color:#fff; }
         .filter-controls { display:flex; gap:12px; align-items:flex-end; margin-top:12px; }
+        details.card summary { cursor: pointer; font-weight: 600; color: #00d4ff; list-style: none; padding: 4px 0; }
+        details.card summary::-webkit-details-marker { display: none; }
+        details.card[open] summary { margin-bottom: 12px; }
     </style>
 </head>
 <body>
@@ -36,7 +39,7 @@
     <h1 style="background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent; margin:0 0 8px;">Shell Control Correlation Tool</h1>
     <p style="color:#888; margin:0 0 24px;">Zircon Prime Slurry • Calculated cSt vs Sensor + Difference Validation</p>
 
-    <!-- Upload Section -->
+    <!-- Upload Section (always at top) -->
     <div class="card">
         <h3 class="section-title">1. Upload Raw Export CSV</h3>
         <input type="file" id="fileInput" accept=".csv" style="width:100%; margin-bottom:16px;">
@@ -57,7 +60,7 @@
         </div>
 
         <div style="margin-bottom:20px;">
-            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Cup Type</label>
+            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Select Cup</label>
             <select id="cupType">
                 <option value="EZ-Zahn4">EZ-Zahn4</option>
                 <option value="EZ-Zahn5">EZ-Zahn5</option>
@@ -72,87 +75,25 @@
         <div id="status"></div>
     </div>
 
-    <!-- Shift Definitions -->
-    <div class="card">
-        <h3 class="section-title">2. Shift Definitions (Optional)</h3>
-        <p style="color:#888; margin:0 0 12px; font-size:14px;">Edit shift names and start times. Shifts are assigned automatically based on time.</p>
-        <div id="shiftDefs" style="display:grid; gap:12px;"></div>
-        <div style="margin-top:16px; display:flex; gap:12px;">
-            <button id="assignBtn" style="flex:1;">Assign Shifts</button>
-            <button id="resetBtn" class="secondary" style="flex:0.6;">Reset Defaults</button>
+    <!-- Shift Definitions - Collapsible, starts closed -->
+    <details class="card">
+        <summary style="font-size:15px; color:#00d4ff; font-weight:600;">2. Shift Definitions (Optional — Click to expand)</summary>
+        <div style="padding-top:8px;">
+            <p style="color:#888; margin:0 0 12px; font-size:14px;">Edit shift names and start times. Shifts are assigned automatically based on time of day. This section is optional.</p>
+            <div id="shiftDefs" style="display:grid; gap:12px;"></div>
+            <div style="margin-top:16px; display:flex; gap:12px;">
+                <button id="assignBtn" style="flex:1;">Assign Shifts</button>
+                <button id="resetBtn" class="secondary" style="flex:0.6;">Reset Defaults</button>
+            </div>
         </div>
-    </div>
+    </details>
 
     <!-- Results Section -->
     <div id="resultsSection" style="display:none;">
         
-        <!-- Overall Results -->
+        <!-- Value Range Filter (moved up, right after shifts) -->
         <div class="card">
-            <h3 class="section-title">Overall Results</h3>
-            <div class="metrics" id="overallMetrics"></div>
-        </div>
-
-        <!-- Per-Shift Results -->
-        <div id="perShiftResults"></div>
-
-        <!-- Summary Statistics -->
-        <div class="card">
-            <h3 class="section-title">Summary Statistics</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h4>Manual Cup Time (seconds)</h4>
-                    <div id="cupStats"></div>
-                </div>
-                <div class="stat-card">
-                    <h4>Sensor Viscosity (cP)</h4>
-                    <div id="sensorStats"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Difference Validation & Filtering -->
-        <div class="card">
-            <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h4>Difference Statistics</h4>
-                    <div id="diffStats"></div>
-                </div>
-                <div class="stat-card">
-                    <h4>Statistical Filter (Std Dev of Difference)</h4>
-                    <div style="margin-bottom:12px;">
-                        <label style="font-size:13px; color:#aaa;">Keep within</label>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5" max="5" style="width:80px;">
-                            <span style="color:#aaa;">× Std Dev</span>
-                        </div>
-                    </div>
-                    <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
-                    <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
-                    <p style="font-size:12px; color:#888; margin-top:8px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. This is statistically sound validation of manual measurements.</p>
-                </div>
-            </div>
-
-            <!-- Histogram -->
-            <div style="margin-top:20px;">
-                <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
-                <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                    <canvas id="differenceHistogram" height="120"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Interactive Scatter Plot -->
-        <div class="card">
-            <h3 class="section-title">Interactive: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
-            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                <canvas id="cupVsSensorChart" height="140"></canvas>
-            </div>
-        </div>
-
-        <!-- Sensor Limit Filter -->
-        <div class="card">
-            <h3 class="section-title">Sensor Value Range Filter (Optional)</h3>
+            <h3 class="section-title">3. Sensor Value Range Filter (Optional)</h3>
             <div class="filter-controls">
                 <div>
                     <label>Min Sensor cP</label>
@@ -166,7 +107,72 @@
                     <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
                 </div>
             </div>
-            <p style="color:#888; font-size:13px; margin-top:8px;">Can be combined with the Difference statistical filter above.</p>
+            <p style="color:#888; font-size:13px; margin-top:8px;">Filters all charts, statistics, and table. Can be combined with Difference statistical filter below.</p>
+        </div>
+
+        <!-- Overall Results -->
+        <div class="card">
+            <h3 class="section-title">Overall Results</h3>
+            <div class="metrics" id="overallMetrics"></div>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="card">
+            <h3 class="section-title">Summary Statistics (Cup Time &amp; Sensor)</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Manual Cup Time (seconds)</h4>
+                    <div id="cupStats"></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Sensor Viscosity (cP)</h4>
+                    <div id="sensorStats"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Per-Shift Results (fills in automatically if shifts assigned) -->
+        <div id="perShiftResults"></div>
+
+        <!-- Interactive Scatter Plot -->
+        <div class="card">
+            <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cupVsSensorChart" height="160"></canvas>
+            </div>
+        </div>
+
+        <!-- Difference STD Section -->
+        <div class="card">
+            <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Difference Statistics</h4>
+                    <div id="diffStats"></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Statistical Filter (Std Dev of Difference)</h4>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:13px; color:#aaa;">Keep within (numeric only)</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5" max="5" style="width:90px; padding:10px;">
+                            <span style="color:#aaa; white-space:nowrap;">× Std Dev</span>
+                        </div>
+                    </div>
+                    <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
+                    <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
+                    <p style="font-size:12px; color:#888; margin-top:8px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. This is a statistically sound way to validate manual measurements without arbitrary manipulation.</p>
+                </div>
+            </div>
+
+            <!-- Histogram -->
+            <div style="margin-top:20px;">
+                <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
+                <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                    <canvas id="differenceHistogram" height="130"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Data Table -->
@@ -706,7 +712,7 @@ function initializeApp() {
     document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
     document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
     document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-    console.log('%c[Shell Control Correlation Tool] Ready with histogram + std filter.', 'color:#00d4ff');
+    console.log('%c[Shell Control Correlation Tool] Reordered layout ready (collapsible shifts + numeric std input).', 'color:#00d4ff');
 }
 
 initializeApp();
