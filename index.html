@@ -13,7 +13,6 @@
         .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; }
         .metric { background:#1a1a1a; border-radius:12px; padding:14px; text-align:center; }
         .metric-value { font-size:22px; font-weight:700; color:#00d4ff; }
-        .metric-label { font-size:13px; color:#aaa; margin-top:4px; }
         button { background:#00d4ff; color:#000; border:none; padding:12px 24px; border-radius:9999px; font-weight:600; cursor:pointer; }
         button.secondary { background:#333; color:#fff; }
         select, input { width:100%; padding:10px; background:#1a1a1a; color:#fff; border:1px solid #333; border-radius:8px; }
@@ -29,12 +28,13 @@
         .stat-row:last-child { border-bottom:none; }
         .stat-label { color:#aaa; }
         .stat-value { font-weight:600; color:#fff; }
+        .filter-controls { display:flex; gap:12px; align-items:flex-end; margin-top:12px; }
     </style>
 </head>
 <body>
 <div class="container">
     <h1 style="background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent; margin:0 0 8px;">Shell Control Correlation Tool</h1>
-    <p style="color:#888; margin:0 0 24px;">Zircon Prime Slurry • Calculated cSt vs Sensor Analysis</p>
+    <p style="color:#888; margin:0 0 24px;">Zircon Prime Slurry • Calculated cSt vs Sensor + Difference Validation</p>
 
     <!-- Upload Section -->
     <div class="card">
@@ -95,14 +95,6 @@
         <!-- Per-Shift Results -->
         <div id="perShiftResults"></div>
 
-        <!-- Interactive Scatter Plot: Cup Seconds vs Sensor -->
-        <div class="card">
-            <h3 class="section-title">Interactive: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
-            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                <canvas id="cupVsSensorChart" height="140"></canvas>
-            </div>
-        </div>
-
         <!-- Summary Statistics -->
         <div class="card">
             <h3 class="section-title">Summary Statistics</h3>
@@ -118,27 +110,69 @@
             </div>
         </div>
 
-        <!-- Sensor Limits Filter -->
+        <!-- Difference Validation & Filtering -->
         <div class="card">
-            <h3 class="section-title">Filter by Sensor Range (Outlier Control)</h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
-                <div>
-                    <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Min Sensor cP</label>
-                    <input type="number" id="minSensor" value="200" step="1">
+            <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Difference Statistics</h4>
+                    <div id="diffStats"></div>
                 </div>
-                <div>
-                    <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Max Sensor cP</label>
-                    <input type="number" id="maxSensor" value="400" step="1">
+                <div class="stat-card">
+                    <h4>Statistical Filter (Std Dev of Difference)</h4>
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:13px; color:#aaa;">Keep within</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5" max="5" style="width:80px;">
+                            <span style="color:#aaa;">× Std Dev</span>
+                        </div>
+                    </div>
+                    <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
+                    <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
+                    <p style="font-size:12px; color:#888; margin-top:8px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. This is statistically sound validation of manual measurements.</p>
                 </div>
             </div>
-            <button id="applyLimitsBtn" style="width:100%;">Apply Sensor Limits &amp; Refresh All</button>
-            <p style="color:#888; font-size:13px; margin-top:8px;">Filters all charts, stats, and table to data within this sensor range.</p>
+
+            <!-- Histogram -->
+            <div style="margin-top:20px;">
+                <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
+                <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                    <canvas id="differenceHistogram" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Scatter Plot -->
+        <div class="card">
+            <h3 class="section-title">Interactive: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cupVsSensorChart" height="140"></canvas>
+            </div>
+        </div>
+
+        <!-- Sensor Limit Filter -->
+        <div class="card">
+            <h3 class="section-title">Sensor Value Range Filter (Optional)</h3>
+            <div class="filter-controls">
+                <div>
+                    <label>Min Sensor cP</label>
+                    <input type="number" id="minSensor" value="200">
+                </div>
+                <div>
+                    <label>Max Sensor cP</label>
+                    <input type="number" id="maxSensor" value="400">
+                </div>
+                <div style="flex:0.6;">
+                    <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
+                </div>
+            </div>
+            <p style="color:#888; font-size:13px; margin-top:8px;">Can be combined with the Difference statistical filter above.</p>
         </div>
 
         <!-- Data Table -->
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h3 class="section-title" style="margin:0;">Data Table</h3>
+                <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
                 <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
             </div>
             <div style="max-height:450px; overflow:auto;">
@@ -158,7 +192,9 @@ let shiftDefinitions = [
     { name: "Shift 3 (Nights)",   start: "22:00" },
     { name: "Shift 4 (Optional)", start: "" }
 ];
-let cupVsSensorChartInstance = null;
+
+let cupVsSensorChart = null;
+let diffHistogramChart = null;
 
 // ================== HELPER FUNCTIONS ==================
 function showStatus(msg, isError = false) {
@@ -286,7 +322,7 @@ function runAnalysis() {
         return; 
     }
 
-    showStatus("Parsing file... This may take a few seconds on mobile.");
+    showStatus("Parsing file... This may take 15-30 seconds on mobile.");
 
     Papa.parse(file, {
         header: false,
@@ -327,7 +363,6 @@ function runAnalysis() {
                     r[sensorCol] = parseFloat(r[sensorCol]);
                 });
 
-                // Fill blank sensor values
                 const manualRows = df.filter(r => !isNaN(r[manualCol]));
                 manualRows.forEach(row => {
                     const idx = df.indexOf(row);
@@ -342,7 +377,7 @@ function runAnalysis() {
 
                 let paired = df.filter(r => !isNaN(r[manualCol]) && !isNaN(r[sensorCol]));
                 if (paired.length < 3) {
-                    showStatus("ERROR: Not enough paired data after cleaning (need at least 3).", true);
+                    showStatus("ERROR: Not enough paired data after cleaning.", true);
                     return;
                 }
 
@@ -374,37 +409,58 @@ function runAnalysis() {
     });
 }
 
-function applySensorLimits() {
-    if (!originalPairedData.length) return;
-
-    const minVal = parseFloat(document.getElementById('minSensor').value);
-    const maxVal = parseFloat(document.getElementById('maxSensor').value);
-
-    currentFilteredData = originalPairedData.filter(r => 
-        r.sensor >= minVal && r.sensor <= maxVal
-    );
-
+function assignShifts() {
+    if (!originalPairedData.length) { alert("Run analysis first"); return; }
+    const active = shiftDefinitions.filter(s => s.start);
+    originalPairedData.forEach(r => { r.shift = assignShift(r.date, active); });
+    currentFilteredData = [...originalPairedData];
     renderAll();
 }
 
-function assignShifts() {
-    if (!originalPairedData.length) { 
-        alert("Please run analysis first."); 
-        return; 
-    }
-    const activeShifts = shiftDefinitions.filter(s => s.start);
-    originalPairedData.forEach(r => {
-        r.shift = assignShift(r.date, activeShifts);
-    });
+function applySensorLimits() {
+    if (!originalPairedData.length) return;
+    const minVal = parseFloat(document.getElementById('minSensor').value);
+    const maxVal = parseFloat(document.getElementById('maxSensor').value);
+    currentFilteredData = originalPairedData.filter(r => r.sensor >= minVal && r.sensor <= maxVal);
+    renderAll();
+}
+
+function applyDifferenceStdFilter() {
+    if (!currentFilteredData.length) { alert("Run analysis first"); return; }
+    const multiplier = parseFloat(document.getElementById('stdMultiplier').value);
+    if (isNaN(multiplier) || multiplier <= 0) { alert("Enter a valid number (e.g. 2)"); return; }
+
+    const diffArr = currentFilteredData.map(r => r.difference);
+    const meanDiff = diffArr.reduce((a,b)=>a+b,0) / diffArr.length;
+    const stdDiff = standardDeviation(diffArr);
+
+    if (stdDiff === 0) { alert("Std Dev is zero. Cannot filter."); return; }
+
+    const lower = meanDiff - (multiplier * stdDiff);
+    const upper = meanDiff + (multiplier * stdDiff);
+
+    currentFilteredData = currentFilteredData.filter(r => r.difference >= lower && r.difference <= upper);
+    showStatus(`Applied ±${multiplier}σ Difference filter. Kept ${currentFilteredData.length} points.`);
+    renderAll();
+}
+
+function resetAllFilters() {
+    if (!originalPairedData.length) return;
     currentFilteredData = [...originalPairedData];
+    document.getElementById('minSensor').value = 200;
+    document.getElementById('maxSensor').value = 400;
+    document.getElementById('stdMultiplier').value = 2;
+    showStatus("All filters reset.");
     renderAll();
 }
 
 function renderAll() {
     renderOverallMetrics();
     renderPerShiftResults();
-    renderCupVsSensorChart();
     renderSummaryStatistics();
+    renderDifferenceValidation();
+    renderCupVsSensorChart();
+    renderDifferenceHistogram();
     renderDataTable();
 }
 
@@ -419,69 +475,137 @@ function renderOverallMetrics() {
     const avgCst = cstArr.reduce((a,b)=>a+b,0) / n;
     const stdCst = standardDeviation(cstArr);
     const stdSensor = standardDeviation(sensorArr);
-
-    const x = data.map(r => r.manual);
-    const y = data.map(r => r.sensor);
-    const reg = linearRegression(x, y);
+    const reg = linearRegression(data.map(r => r.manual), data.map(r => r.sensor));
 
     container.innerHTML = `
-        <div class="metric"><div class="metric-value">${n}</div><div class="metric-label">Paired Points</div></div>
-        <div class="metric"><div class="metric-value">${reg.r2.toFixed(4)}</div><div class="metric-label">R²</div></div>
-        <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div class="metric-label">Avg Calculated cSt</div></div>
-        <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div class="metric-label">Std Dev cSt</div></div>
-        <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div class="metric-label">Std Dev Sensor</div></div>
+        <div class="metric"><div class="metric-value">${n}</div><div>Points</div></div>
+        <div class="metric"><div class="metric-value">${reg.r2.toFixed(4)}</div><div>R²</div></div>
+        <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div>Avg cSt</div></div>
+        <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div>Std Dev cSt</div></div>
+        <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div>Std Dev Sensor</div></div>
     `;
 }
 
 function renderPerShiftResults() {
     const container = document.getElementById('perShiftResults');
     container.innerHTML = '';
-
     const grouped = {};
     currentFilteredData.forEach(r => {
         const key = r.shift || "Unassigned";
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(r);
     });
-
     Object.keys(grouped).forEach(shiftName => {
         const data = grouped[shiftName];
         if (data.length < 2) return;
-
         const n = data.length;
-        const cstArr = data.map(r => r.cst);
-        const sensorArr = data.map(r => r.sensor);
-        const avgCst = cstArr.reduce((a,b)=>a+b,0) / n;
-        const stdCst = standardDeviation(cstArr);
-        const stdSensor = standardDeviation(sensorArr);
-
-        const x = data.map(r => r.manual);
-        const y = data.map(r => r.sensor);
-        const reg = linearRegression(x, y);
-
+        const reg = linearRegression(data.map(r => r.manual), data.map(r => r.sensor));
+        const avgCst = data.map(r => r.cst).reduce((a,b)=>a+b,0) / n;
+        const stdCst = standardDeviation(data.map(r => r.cst));
+        const stdSensor = standardDeviation(data.map(r => r.sensor));
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
-            <h3 style="margin:0 0 14px; color:#00d4ff;">${shiftName} <span style="color:#888; font-size:15px;">(n=${n})</span></h3>
-            <div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));">
-                <div class="metric"><div class="metric-value">${reg.r2.toFixed(3)}</div><div class="metric-label">R²</div></div>
-                <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div class="metric-label">Avg cSt</div></div>
-                <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div class="metric-label">Std Dev cSt</div></div>
-                <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div class="metric-label">Std Dev Sensor</div></div>
+            <h3 style="margin:0 0 12px; color:#00d4ff;">${shiftName} <span style="color:#888; font-size:14px;">(n=${n})</span></h3>
+            <div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+                <div class="metric"><div class="metric-value">${reg.r2.toFixed(3)}</div><div>R²</div></div>
+                <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div>Avg cSt</div></div>
+                <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div>Std Dev cSt</div></div>
+                <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div>Std Dev Sensor</div></div>
             </div>
         `;
         container.appendChild(card);
     });
 }
 
-// Interactive Scatter Plot: Cup Seconds vs Sensor cP
+function renderSummaryStatistics() {
+    const cupContainer = document.getElementById('cupStats');
+    const sensorContainer = document.getElementById('sensorStats');
+    const cupArr = currentFilteredData.map(r => r.manual);
+    const sensorArr = currentFilteredData.map(r => r.sensor);
+    if (cupArr.length === 0) { cupContainer.innerHTML = '<p>No data</p>'; sensorContainer.innerHTML = '<p>No data</p>'; return; }
+
+    cupContainer.innerHTML = `
+        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...cupArr).toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...cupArr).toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(cupArr.reduce((a,b)=>a+b,0)/cupArr.length).toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(cupArr).toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(cupArr).toFixed(2)}</span></div>
+    `;
+    sensorContainer.innerHTML = `
+        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...sensorArr).toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...sensorArr).toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(sensorArr.reduce((a,b)=>a+b,0)/sensorArr.length).toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(sensorArr).toFixed(1)}</span></div>
+        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(sensorArr).toFixed(1)}</span></div>
+    `;
+}
+
+function renderDifferenceValidation() {
+    const container = document.getElementById('diffStats');
+    const data = currentFilteredData;
+    if (data.length < 2) { container.innerHTML = '<p>No data</p>'; return; }
+    const diffArr = data.map(r => r.difference);
+    const meanDiff = diffArr.reduce((a,b)=>a+b,0) / diffArr.length;
+    const stdDiff = standardDeviation(diffArr);
+    const medianDiff = getMedian(diffArr);
+    container.innerHTML = `
+        <div class="stat-row"><span class="stat-label">Mean Difference</span><span class="stat-value">${meanDiff.toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Std Dev Difference</span><span class="stat-value">${stdDiff.toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Median Difference</span><span class="stat-value">${medianDiff.toFixed(2)}</span></div>
+        <div class="stat-row"><span class="stat-label">Points</span><span class="stat-value">${data.length}</span></div>
+    `;
+}
+
+function renderDifferenceHistogram() {
+    if (diffHistogramChart) diffHistogramChart.destroy();
+    const ctx = document.getElementById('differenceHistogram');
+    const data = currentFilteredData;
+    if (data.length < 5) { ctx.style.display = 'none'; return; }
+    ctx.style.display = 'block';
+
+    const diffArr = data.map(r => r.difference).sort((a,b)=>a-b);
+    const minD = diffArr[0];
+    const maxD = diffArr[diffArr.length-1];
+    const range = maxD - minD || 1;
+    const binCount = 25;
+    const binSize = range / binCount;
+    const bins = Array(binCount).fill(0);
+    const labels = [];
+
+    for (let i = 0; i < binCount; i++) {
+        const start = minD + (i * binSize);
+        labels.push(start.toFixed(1));
+        for (let j = 0; j < diffArr.length; j++) {
+            if (diffArr[j] >= start && diffArr[j] < start + binSize) bins[i]++;
+        }
+    }
+
+    diffHistogramChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{ label: 'Frequency', data: bins, backgroundColor: '#00d4ff' }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { title: { display: true, text: 'Difference (cP - cSt)' } },
+                y: { title: { display: true, text: 'Count' } }
+            }
+        }
+    });
+}
+
+let cupChartInstance = null;
+
 function renderCupVsSensorChart() {
-    if (cupVsSensorChartInstance) cupVsSensorChartInstance.destroy();
+    if (cupChartInstance) cupChartInstance.destroy();
     const ctx = document.getElementById('cupVsSensorChart');
     const shifts = [...new Set(currentFilteredData.map(r => r.shift || "Unassigned"))];
     const colors = ['#00d4ff', '#ffaa00', '#00ff9d', '#ff6b6b'];
-
-    cupVsSensorChartInstance = new Chart(ctx, {
+    cupChartInstance = new Chart(ctx, {
         type: 'scatter',
         data: {
             datasets: shifts.map((shift, i) => ({
@@ -501,53 +625,11 @@ function renderCupVsSensorChart() {
     });
 }
 
-// Summary Statistics (updates with filter)
-function renderSummaryStatistics() {
-    const cupContainer = document.getElementById('cupStats');
-    const sensorContainer = document.getElementById('sensorStats');
-
-    const cupArr = currentFilteredData.map(r => r.manual);
-    const sensorArr = currentFilteredData.map(r => r.sensor);
-
-    if (cupArr.length === 0) {
-        cupContainer.innerHTML = '<p style="color:#ff6b6b;">No data in current filter.</p>';
-        sensorContainer.innerHTML = '<p style="color:#ff6b6b;">No data in current filter.</p>';
-        return;
-    }
-
-    cupContainer.innerHTML = `
-        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(cupArr.reduce((a,b)=>a+b,0)/cupArr.length).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(cupArr).toFixed(2)}</span></div>
-    `;
-
-    sensorContainer.innerHTML = `
-        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(sensorArr.reduce((a,b)=>a+b,0)/sensorArr.length).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(sensorArr).toFixed(1)}</span></div>
-    `;
-}
-
 function renderDataTable() {
     const table = document.getElementById('dataTable');
-    table.querySelector('thead').innerHTML = `
-        <tr>
-            <th>Date/Time</th>
-            <th>Shift</th>
-            <th>Cup</th>
-            <th>Manual (s)</th>
-            <th>Sensor (cP)</th>
-            <th>Calculated cSt</th>
-            <th>Difference</th>
-        </tr>
-    `;
+    table.querySelector('thead').innerHTML = `<tr><th>Date/Time</th><th>Shift</th><th>Cup</th><th>Manual (s)</th><th>Sensor (cP)</th><th>Calculated cSt</th><th>Difference</th></tr>`;
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
-
     currentFilteredData.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -576,14 +658,12 @@ function downloadCSV() {
     a.click();
 }
 
-// ================== AUTO COLUMN DETECTION ==================
+// Auto column detection
 function setupAutoColumnDetection() {
     document.getElementById('fileInput').addEventListener('change', function() {
         const file = this.files[0];
         if (!file) return;
-
         showStatus("Detecting columns...");
-
         Papa.parse(file, {
             header: false,
             skipEmptyLines: true,
@@ -591,58 +671,42 @@ function setupAutoColumnDetection() {
             complete: function(results) {
                 const rows = results.data;
                 let headerRowIndex = -1;
-
                 for (let i = 0; i < rows.length; i++) {
                     if (rows[i] && rows[i].some(cell => cell && cell.toString().toLowerCase().includes("zahn"))) {
-                        headerRowIndex = i;
-                        break;
+                        headerRowIndex = i; break;
                     }
                 }
-
-                if (headerRowIndex === -1) {
-                    showStatus("Could not auto-detect header. Please select columns manually.", true);
-                    return;
-                }
-
+                if (headerRowIndex === -1) { showStatus("Could not auto-detect. Select columns manually.", true); return; }
                 const headers = rows[headerRowIndex].map(h => h ? h.toString().trim() : '').filter(Boolean);
                 const dateSel = document.getElementById('dateCol');
                 const manSel = document.getElementById('manualCol');
                 const senSel = document.getElementById('sensorCol');
-
                 dateSel.innerHTML = manSel.innerHTML = senSel.innerHTML = '';
-
-                headers.forEach(h => {
-                    dateSel.add(new Option(h, h));
-                    manSel.add(new Option(h, h));
-                    senSel.add(new Option(h, h));
-                });
-
+                headers.forEach(h => { dateSel.add(new Option(h, h)); manSel.add(new Option(h, h)); senSel.add(new Option(h, h)); });
                 const dateGuess = headers.find(h => h.includes("Date and Time")) || headers[0];
                 const manGuess = headers.find(h => h.toLowerCase().includes("zahn")) || headers[1];
                 const senGuess = headers.find(h => h.includes("Zircon Viscosity (Dynamic Viscosity) (cP)")) || headers[2];
-
                 if (dateGuess) dateSel.value = dateGuess;
                 if (manGuess) manSel.value = manGuess;
                 if (senGuess) senSel.value = senGuess;
-
-                showStatus("Columns auto-detected successfully. Ready to run.");
+                showStatus("Columns auto-detected. Ready to run.");
             }
         });
     });
 }
 
-// ================== INITIALIZE ==================
+// Initialize
 function initializeApp() {
     renderShiftDefinitions();
     setupAutoColumnDetection();
-
     document.getElementById('runBtn').addEventListener('click', runAnalysis);
     document.getElementById('assignBtn').addEventListener('click', assignShifts);
     document.getElementById('resetBtn').addEventListener('click', resetShifts);
-    document.getElementById('applyLimitsBtn').addEventListener('click', applySensorLimits);
+    document.getElementById('applySensorLimitsBtn').addEventListener('click', applySensorLimits);
+    document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
+    document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
     document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-
-    console.log('%c[Shell Control Correlation Tool] Ready with scatter plot + dynamic sensor limits filter.', 'color:#00d4ff');
+    console.log('%c[Shell Control Correlation Tool] Ready with histogram + std filter.', 'color:#00d4ff');
 }
 
 initializeApp();
