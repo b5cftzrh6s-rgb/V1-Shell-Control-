@@ -33,19 +33,16 @@
         details.card summary::-webkit-details-marker { display: none; }
         details.card[open] summary { margin-bottom: 12px; }
         
-        /* Sidebar styling */
-        .results-grid {
+        /* Responsive two-column filters at top of results */
+        .top-filters {
             display: grid;
-            grid-template-columns: 1fr 320px;
+            grid-template-columns: 1fr 1fr;
             gap: 20px;
-            align-items: start;
         }
-        .sidebar {
-            position: sticky;
-            top: 20px;
-        }
-        .sidebar .card {
-            margin-bottom: 16px;
+        @media (max-width: 900px) {
+            .top-filters {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -74,7 +71,7 @@
             </div>
         </div>
 
-        <!-- NEW: Optional Density and Temperature columns -->
+        <!-- Optional Density and Temperature columns -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
             <div>
                 <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Density (optional)</label>
@@ -88,6 +85,18 @@
                     <option value="">-- None --</option>
                 </select>
             </div>
+        </div>
+
+        <!-- Column Preview -->
+        <div id="columnPreview" style="display:none; margin-bottom:16px; background:#1a1a1a; border-radius:8px; padding:12px; border:1px solid #333;">
+            <div style="font-size:13px; color:#00d4ff; margin-bottom:8px; font-weight:600;">Column Preview — First 4 data rows (helps identify which column has your manual Zahn seconds vs sensor cP)</div>
+            <div style="overflow-x:auto; max-height:180px;">
+                <table id="previewTable" style="font-size:11px; width:100%; border-collapse:collapse;">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <p style="font-size:11px; color:#888; margin:8px 0 0;">Tip: Manual column usually shows sparse ~20-40s values. Sensor column shows many ~200-400 cP values. Date column shows timestamps.</p>
         </div>
 
         <div style="margin-bottom:20px;">
@@ -120,114 +129,106 @@
         </div>
     </details>
 
-    <!-- Results Section with Sidebar -->
+    <!-- Results Section -->
     <div id="resultsSection" style="display:none;">
-        <div class="results-grid">
+        
+        <!-- TOP FILTERS: Sensor Range + STD Filter (right below shifts) -->
+        <div class="top-filters">
             
-            <!-- MAIN CONTENT (Left) -->
-            <div>
-                <!-- Overall Results -->
-                <div class="card">
-                    <h3 class="section-title">Overall Results</h3>
-                    <div class="metrics" id="overallMetrics"></div>
-                </div>
-
-                <!-- Summary Statistics -->
-                <div class="card">
-                    <h3 class="section-title">Summary Statistics (Cup Time &amp; Sensor)</h3>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h4>Manual Cup Time (seconds)</h4>
-                            <div id="cupStats"></div>
-                        </div>
-                        <div class="stat-card">
-                            <h4>Sensor Viscosity (cP)</h4>
-                            <div id="sensorStats"></div>
-                        </div>
+            <!-- Sensor Value Range Filter -->
+            <div class="card">
+                <h3 class="section-title">3. Sensor Value Range Filter</h3>
+                <div class="filter-controls" style="flex-direction:column; align-items:stretch;">
+                    <div>
+                        <label style="font-size:13px; color:#aaa;">Min Sensor cP (leave blank for no filter)</label>
+                        <input type="number" id="minSensor" placeholder="e.g. 200">
+                    </div>
+                    <div>
+                        <label style="font-size:13px; color:#aaa;">Max Sensor cP (leave blank for no filter)</label>
+                        <input type="number" id="maxSensor" placeholder="e.g. 400">
+                    </div>
+                    <div>
+                        <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
                     </div>
                 </div>
+                <p style="color:#888; font-size:12px; margin-top:10px;">Filters all charts, statistics, and table below.</p>
+            </div>
 
-                <!-- Per-Shift Results -->
-                <div id="perShiftResults"></div>
-
-                <!-- Interactive Scatter Plot -->
-                <div class="card">
-                    <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
-                    <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                        <canvas id="cupVsSensorChart" height="180"></canvas>
+            <!-- Difference STD Filter -->
+            <div class="card">
+                <h3 class="section-title">4. Statistical Filter (Std Dev of Difference)</h3>
+                
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:13px; color:#aaa;">Keep within (numeric value only)</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="number" id="stdMultiplier" step="0.5" min="0.5" max="5" style="width:90px; padding:10px;">
+                        <span style="color:#aaa; white-space:nowrap;">× Std Dev</span>
                     </div>
-                    <p style="font-size:12px; color:#888; margin-top:8px;">R² shown in chart title and legend when shifts are assigned.</p>
                 </div>
-
-                <!-- Difference Validation (Stats + Histogram only) -->
-                <div class="card">
-                    <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
+                
+                <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
+                <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
+                
+                <p style="font-size:12px; color:#888; margin-top:10px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. Statistically sound validation of manual measurements.</p>
+                
+                <!-- Difference Stats + Histogram inside this card -->
+                <div style="margin-top:16px; padding-top:16px; border-top:1px solid #333;">
+                    <h4 style="margin:0 0 8px; color:#00d4ff; font-size:14px;">Difference Statistics</h4>
+                    <div id="diffStats" style="margin-bottom:12px;"></div>
                     
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h4>Difference Statistics</h4>
-                            <div id="diffStats"></div>
-                        </div>
-                    </div>
-
-                    <!-- Histogram -->
-                    <div style="margin-top:20px;">
-                        <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
-                        <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                            <canvas id="differenceHistogram" height="130"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Data Table -->
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                        <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
-                        <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
-                    </div>
-                    <div style="max-height:450px; overflow:auto;">
-                        <table id="dataTable"><thead></thead><tbody></tbody></table>
+                    <h4 style="margin:12px 0 8px; color:#00d4ff; font-size:14px;">Difference Distribution (Histogram)</h4>
+                    <div style="background:#1a1a1a; border-radius:12px; padding:12px;">
+                        <canvas id="differenceHistogram" height="110"></canvas>
                     </div>
                 </div>
             </div>
+            
+        </div>
 
-            <!-- STICKY SIDEBAR (Right) -->
-            <div class="sidebar">
-                <!-- Sensor Value Range Filter -->
-                <div class="card">
-                    <h3 class="section-title">3. Sensor Value Range Filter</h3>
-                    <div class="filter-controls" style="flex-direction:column; align-items:stretch;">
-                        <div>
-                            <label style="font-size:13px; color:#aaa;">Min Sensor cP</label>
-                            <input type="number" id="minSensor" placeholder="e.g. 200">
-                        </div>
-                        <div>
-                            <label style="font-size:13px; color:#aaa;">Max Sensor cP</label>
-                            <input type="number" id="maxSensor" placeholder="e.g. 400">
-                        </div>
-                        <div>
-                            <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
-                        </div>
-                    </div>
-                    <p style="color:#888; font-size:12px; margin-top:10px;">Filters all charts, statistics, and table. Leave blank for no filter.</p>
+        <!-- Overall Results -->
+        <div class="card">
+            <h3 class="section-title">Overall Results</h3>
+            <div class="metrics" id="overallMetrics"></div>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="card">
+            <h3 class="section-title">Summary Statistics (Cup Time &amp; Sensor)</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Manual Cup Time (seconds)</h4>
+                    <div id="cupStats"></div>
                 </div>
-
-                <!-- Difference STD Filter -->
-                <div class="card">
-                    <h3 class="section-title">4. Statistical Filter (Std Dev of Difference)</h3>
-                    <div style="margin-bottom:12px;">
-                        <label style="font-size:13px; color:#aaa;">Keep within (numeric only)</label>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                            <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5" max="5" style="width:90px; padding:10px;">
-                            <span style="color:#aaa; white-space:nowrap;">× Std Dev</span>
-                        </div>
-                    </div>
-                    <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
-                    <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
-                    <p style="font-size:12px; color:#888; margin-top:10px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. Statistically sound validation of manual measurements.</p>
+                <div class="stat-card">
+                    <h4>Sensor Viscosity (cP)</h4>
+                    <div id="sensorStats"></div>
                 </div>
             </div>
         </div>
+
+        <!-- Per-Shift Results -->
+        <div id="perShiftResults"></div>
+
+        <!-- Interactive Scatter Plot -->
+        <div class="card">
+            <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cupVsSensorChart" height="180"></canvas>
+            </div>
+            <p style="font-size:12px; color:#888; margin-top:8px;">R² shown in chart title and legend when shifts are assigned.</p>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
+                <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
+            </div>
+            <div style="max-height:450px; overflow:auto;">
+                <table id="dataTable"><thead></thead><tbody></tbody></table>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -245,7 +246,6 @@ let shiftDefinitions = [
 let cupChartInstance = null;
 let diffHistogramChart = null;
 
-// Store selected optional columns
 let selectedDensityCol = "";
 let selectedTempCol = "";
 
@@ -385,7 +385,6 @@ function runAnalysis() {
 
     Papa.parse(file, {
         header: false,
-        skipEmptyLines: true,
         complete: function(results) {
             try {
                 const rows = results.data;
@@ -456,7 +455,6 @@ function runAnalysis() {
                     r.shift = "Unassigned";
                     r.difference = r.sensor - r.cst;
                     
-                    // Store optional fields
                     if (selectedDensityCol && !isNaN(r[selectedDensityCol])) {
                         r.density = r[selectedDensityCol];
                     }
@@ -690,7 +688,6 @@ function renderCupVsSensorChart() {
     const shifts = [...new Set(currentFilteredData.map(r => r.shift || "Unassigned"))];
     const colors = ['#00d4ff', '#ffaa00', '#00ff9d', '#ff6b6b'];
     
-    // Calculate overall R² for title
     const overallReg = linearRegression(
         currentFilteredData.map(r => r.manual), 
         currentFilteredData.map(r => r.sensor)
@@ -700,7 +697,6 @@ function renderCupVsSensorChart() {
         const shiftData = currentFilteredData.filter(r => (r.shift || "Unassigned") === shift);
         let label = shift;
         
-        // Add R² to legend label if shift has enough points
         if (shiftData.length >= 2) {
             const shiftReg = linearRegression(
                 shiftData.map(r => r.manual), 
@@ -741,7 +737,6 @@ function renderCupVsSensorChart() {
 function renderDataTable() {
     const table = document.getElementById('dataTable');
     
-    // Dynamic header based on optional columns
     let headerHTML = `<tr>
         <th>Date/Time</th>
         <th>Shift</th>
@@ -808,15 +803,23 @@ function downloadCSV() {
     a.click();
 }
 
-// Fixed row 15 header detection + manual column selection
+// Fixed row 15 header detection + manual column selection + preview
 function setupAutoColumnDetection() {
     document.getElementById('fileInput').addEventListener('change', function() {
         const file = this.files[0];
         if (!file) return;
+        
+        document.getElementById('resultsSection').style.display = 'none';
+        const previewDivClear = document.getElementById('columnPreview');
+        if (previewDivClear) previewDivClear.style.display = 'none';
+        const cupSel = document.getElementById('cupType');
+        if (cupSel) cupSel.value = '';
+        originalPairedData = [];
+        currentFilteredData = [];
+        
         showStatus("Loading file headers from row 15...");
         Papa.parse(file, {
             header: false,
-            skipEmptyLines: true,
             preview: 30,
             complete: function(results) {
                 const rows = results.data;
@@ -832,7 +835,6 @@ function setupAutoColumnDetection() {
                     return;
                 }
                 
-                // Populate required columns
                 const dateSel = document.getElementById('dateCol');
                 const manSel = document.getElementById('manualCol');
                 const senSel = document.getElementById('sensorCol');
@@ -844,16 +846,13 @@ function setupAutoColumnDetection() {
                     senSel.add(new Option(h, h));
                 });
                 
-                // Pre-select by position
                 if (headers.length > 0) dateSel.value = headers[0];
                 if (headers.length > 1) manSel.value = headers[1];
                 if (headers.length > 2) senSel.value = headers[2];
                 
-                // Populate optional Density and Temperature selects (with -- None -- already present)
                 const densSel = document.getElementById('densityCol');
                 const tempSel = document.getElementById('tempCol');
                 
-                // Keep the first "None" option, add the rest
                 densSel.innerHTML = '<option value="">-- None --</option>';
                 tempSel.innerHTML = '<option value="">-- None --</option>';
                 
@@ -862,29 +861,53 @@ function setupAutoColumnDetection() {
                     tempSel.add(new Option(h, h));
                 });
                 
-                showStatus("Headers loaded from row 15. Select columns + Cup Type, then click Run Analysis.");
+                // Render column preview table
+                const previewDiv = document.getElementById('columnPreview');
+                const previewTable = document.getElementById('previewTable');
+                previewTable.innerHTML = '';
+                
+                const thead = document.createElement('thead');
+                let theadHTML = '<tr>';
+                headers.forEach(h => { theadHTML += `<th>${h}</th>`; });
+                theadHTML += '</tr>';
+                thead.innerHTML = theadHTML;
+                previewTable.appendChild(thead);
+                
+                const tbody = document.createElement('tbody');
+                for (let i = 15; i < Math.min(19, rows.length); i++) {
+                    const row = rows[i] || [];
+                    let rowHTML = '<tr>';
+                    headers.forEach((h, idx) => {
+                        const val = row[idx] !== undefined ? row[idx] : '';
+                        rowHTML += `<td style="max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${val}</td>`;
+                    });
+                    rowHTML += '</tr>';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = rowHTML;
+                    tbody.appendChild(tr);
+                }
+                previewTable.appendChild(tbody);
+                previewDiv.style.display = 'block';
+                
+                showStatus("Headers loaded from row 15. Select your columns above, choose Cup Type, then click Run Analysis.");
             }
         });
     });
 }
 
-// Initialize
-function initializeApp() {
-    renderShiftDefinitions();
-    setupAutoColumnDetection();
-    
-    document.getElementById('runBtn').addEventListener('click', runAnalysis);
-    document.getElementById('assignBtn').addEventListener('click', assignShifts);
-    document.getElementById('resetBtn').addEventListener('click', resetShifts);
-    document.getElementById('applySensorLimitsBtn').addEventListener('click', applySensorLimits);
-    document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
-    document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
-    document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-    
-    console.log('%c[Shell Control Correlation Tool] Updated with Density/Temp + sticky sidebar + required cup + R² on scatter.', 'color:#00d4ff');
-}
+// Event listeners
+document.getElementById('runBtn').addEventListener('click', runAnalysis);
+document.getElementById('assignBtn').addEventListener('click', assignShifts);
+document.getElementById('resetBtn').addEventListener('click', resetShifts);
+document.getElementById('applySensorLimitsBtn').addEventListener('click', applySensorLimits);
+document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
+document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
+document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
 
-initializeApp();
+// Initialize
+renderShiftDefinitions();
+setupAutoColumnDetection();
+console.log('%c[Shell Control Correlation Tool] Ready — row 15 headers, manual column selection, required cup, blank sensor range, top filters.', 'color:#00d4ff');
 </script>
 </body>
 </html>
