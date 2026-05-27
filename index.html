@@ -32,21 +32,6 @@
         details.card summary { cursor: pointer; font-weight: 600; color: #00d4ff; list-style: none; padding: 4px 0; }
         details.card summary::-webkit-details-marker { display: none; }
         details.card[open] summary { margin-bottom: 12px; }
-        
-        /* Sidebar styling */
-        .results-grid {
-            display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 20px;
-            align-items: start;
-        }
-        .sidebar {
-            position: sticky;
-            top: 20px;
-        }
-        .sidebar .card {
-            margin-bottom: 16px;
-        }
     </style>
 </head>
 <body>
@@ -61,39 +46,22 @@
         
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
             <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Date/Time Column <span style="color:#ff6b6b;">(required)</span></label>
+                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Date/Time Column</label>
                 <select id="dateCol"></select>
             </div>
             <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Manual Viscosity (Zahn seconds) <span style="color:#ff6b6b;">(required)</span></label>
+                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Manual Viscosity (Zahn seconds)</label>
                 <select id="manualCol"></select>
             </div>
             <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Sensor Viscosity (cP) <span style="color:#ff6b6b;">(required)</span></label>
+                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Sensor Viscosity (cP)</label>
                 <select id="sensorCol"></select>
             </div>
         </div>
 
-        <!-- NEW: Optional Density and Temperature columns -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-            <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Density (optional)</label>
-                <select id="densityCol">
-                    <option value="">-- None --</option>
-                </select>
-            </div>
-            <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Temperature (optional)</label>
-                <select id="tempCol">
-                    <option value="">-- None --</option>
-                </select>
-            </div>
-        </div>
-
         <div style="margin-bottom:20px;">
-            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Select Cup <span style="color:#ff6b6b;">(required)</span></label>
+            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Select Cup</label>
             <select id="cupType">
-                <option value="">-- Select Cup Type --</option>
                 <option value="EZ-Zahn4">EZ-Zahn4</option>
                 <option value="EZ-Zahn5">EZ-Zahn5</option>
                 <option value="ISO6">ISO6</option>
@@ -120,101 +88,71 @@
         </div>
     </details>
 
-    <!-- Results Section with Sidebar -->
+    <!-- Results Section -->
     <div id="resultsSection" style="display:none;">
-        <div class="results-grid">
-            
-            <!-- MAIN CONTENT (Left) -->
-            <div>
-                <!-- Overall Results -->
-                <div class="card">
-                    <h3 class="section-title">Overall Results</h3>
-                    <div class="metrics" id="overallMetrics"></div>
+        
+        <!-- Value Range Filter (moved up, right after shifts) -->
+        <div class="card">
+            <h3 class="section-title">3. Sensor Value Range Filter (Optional)</h3>
+            <div class="filter-controls">
+                <div>
+                    <label>Min Sensor cP</label>
+                    <input type="number" id="minSensor" value="200">
                 </div>
-
-                <!-- Summary Statistics -->
-                <div class="card">
-                    <h3 class="section-title">Summary Statistics (Cup Time &amp; Sensor)</h3>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h4>Manual Cup Time (seconds)</h4>
-                            <div id="cupStats"></div>
-                        </div>
-                        <div class="stat-card">
-                            <h4>Sensor Viscosity (cP)</h4>
-                            <div id="sensorStats"></div>
-                        </div>
-                    </div>
+                <div>
+                    <label>Max Sensor cP</label>
+                    <input type="number" id="maxSensor" value="400">
                 </div>
-
-                <!-- Per-Shift Results -->
-                <div id="perShiftResults"></div>
-
-                <!-- Interactive Scatter Plot -->
-                <div class="card">
-                    <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
-                    <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                        <canvas id="cupVsSensorChart" height="180"></canvas>
-                    </div>
-                    <p style="font-size:12px; color:#888; margin-top:8px;">R² shown in chart title and legend when shifts are assigned.</p>
-                </div>
-
-                <!-- Difference Validation (Stats + Histogram only) -->
-                <div class="card">
-                    <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <h4>Difference Statistics</h4>
-                            <div id="diffStats"></div>
-                        </div>
-                    </div>
-
-                    <!-- Histogram -->
-                    <div style="margin-top:20px;">
-                        <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
-                        <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
-                            <canvas id="differenceHistogram" height="130"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Data Table -->
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                        <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
-                        <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
-                    </div>
-                    <div style="max-height:450px; overflow:auto;">
-                        <table id="dataTable"><thead></thead><tbody></tbody></table>
-                    </div>
+                <div style="flex:0.6;">
+                    <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
                 </div>
             </div>
+            <p style="color:#888; font-size:13px; margin-top:8px;">Filters all charts, statistics, and table. Can be combined with Difference statistical filter below.</p>
+        </div>
 
-            <!-- STICKY SIDEBAR (Right) -->
-            <div class="sidebar">
-                <!-- Sensor Value Range Filter -->
-                <div class="card">
-                    <h3 class="section-title">3. Sensor Value Range Filter</h3>
-                    <div class="filter-controls" style="flex-direction:column; align-items:stretch;">
-                        <div>
-                            <label style="font-size:13px; color:#aaa;">Min Sensor cP</label>
-                            <input type="number" id="minSensor" placeholder="e.g. 200">
-                        </div>
-                        <div>
-                            <label style="font-size:13px; color:#aaa;">Max Sensor cP</label>
-                            <input type="number" id="maxSensor" placeholder="e.g. 400">
-                        </div>
-                        <div>
-                            <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
-                        </div>
-                    </div>
-                    <p style="color:#888; font-size:12px; margin-top:10px;">Filters all charts, statistics, and table. Leave blank for no filter.</p>
+        <!-- Overall Results -->
+        <div class="card">
+            <h3 class="section-title">Overall Results</h3>
+            <div class="metrics" id="overallMetrics"></div>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="card">
+            <h3 class="section-title">Summary Statistics (Cup Time &amp; Sensor)</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Manual Cup Time (seconds)</h4>
+                    <div id="cupStats"></div>
                 </div>
+                <div class="stat-card">
+                    <h4>Sensor Viscosity (cP)</h4>
+                    <div id="sensorStats"></div>
+                </div>
+            </div>
+        </div>
 
-                <!-- Difference STD Filter -->
-                <div class="card">
-                    <h3 class="section-title">4. Statistical Filter (Std Dev of Difference)</h3>
+        <!-- Per-Shift Results (fills in automatically if shifts assigned) -->
+        <div id="perShiftResults"></div>
+
+        <!-- Interactive Scatter Plot -->
+        <div class="card">
+            <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
+            <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                <canvas id="cupVsSensorChart" height="160"></canvas>
+            </div>
+        </div>
+
+        <!-- Difference STD Section -->
+        <div class="card">
+            <h3 class="section-title">Difference Validation (Sensor cP − Calculated cSt)</h3>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h4>Difference Statistics</h4>
+                    <div id="diffStats"></div>
+                </div>
+                <div class="stat-card">
+                    <h4>Statistical Filter (Std Dev of Difference)</h4>
                     <div style="margin-bottom:12px;">
                         <label style="font-size:13px; color:#aaa;">Keep within (numeric only)</label>
                         <div style="display:flex; gap:8px; align-items:center;">
@@ -224,8 +162,27 @@
                     </div>
                     <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
                     <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
-                    <p style="font-size:12px; color:#888; margin-top:10px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. Statistically sound validation of manual measurements.</p>
+                    <p style="font-size:12px; color:#888; margin-top:8px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. This is a statistically sound way to validate manual measurements without arbitrary manipulation.</p>
                 </div>
+            </div>
+
+            <!-- Histogram -->
+            <div style="margin-top:20px;">
+                <h4 style="margin:0 0 12px; color:#00d4ff;">Difference Distribution (Histogram)</h4>
+                <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
+                    <canvas id="differenceHistogram" height="130"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
+                <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
+            </div>
+            <div style="max-height:450px; overflow:auto;">
+                <table id="dataTable"><thead></thead><tbody></tbody></table>
             </div>
         </div>
     </div>
@@ -242,12 +199,8 @@ let shiftDefinitions = [
     { name: "Shift 4 (Optional)", start: "" }
 ];
 
-let cupChartInstance = null;
+let cupVsSensorChart = null;
 let diffHistogramChart = null;
-
-// Store selected optional columns
-let selectedDensityCol = "";
-let selectedTempCol = "";
 
 // ================== HELPER FUNCTIONS ==================
 function showStatus(msg, isError = false) {
@@ -375,12 +328,6 @@ function runAnalysis() {
         return; 
     }
 
-    const cupType = document.getElementById('cupType').value;
-    if (!cupType) {
-        showStatus("ERROR: Please select a Cup Type before running analysis.", true);
-        return;
-    }
-
     showStatus("Parsing file... This may take 15-30 seconds on mobile.");
 
     Papa.parse(file, {
@@ -390,6 +337,7 @@ function runAnalysis() {
             try {
                 const rows = results.data;
                 
+                // Fixed structure: headers always in row 15 (0-based index 14), data starts row 16 (index 15)
                 if (rows.length < 16) {
                     showStatus("ERROR: File too short. Headers must be in row 15 and data from row 16.", true);
                     return;
@@ -410,23 +358,20 @@ function runAnalysis() {
                     return obj;
                 }).filter(row => Object.keys(row).length > 2);
 
-                // Get selected columns
+                // Use user-selected columns from the dropdowns (no name guessing)
                 const dateCol = document.getElementById('dateCol').value;
                 const manualCol = document.getElementById('manualCol').value;
                 const sensorCol = document.getElementById('sensorCol').value;
-                selectedDensityCol = document.getElementById('densityCol').value;
-                selectedTempCol = document.getElementById('tempCol').value;
+                const cupType = document.getElementById('cupType').value;
 
                 if (!dateCol || !manualCol || !sensorCol) {
-                    showStatus("ERROR: Please select Date/Time, Manual Viscosity, and Sensor Viscosity columns.", true);
+                    showStatus("ERROR: Please select Date/Time, Manual Viscosity, and Sensor Viscosity columns above.", true);
                     return;
                 }
 
                 df.forEach(r => {
                     r[manualCol] = parseFloat(r[manualCol]);
                     r[sensorCol] = parseFloat(r[sensorCol]);
-                    if (selectedDensityCol) r[selectedDensityCol] = parseFloat(r[selectedDensityCol]);
-                    if (selectedTempCol) r[selectedTempCol] = parseFloat(r[selectedTempCol]);
                 });
 
                 const manualRows = df.filter(r => !isNaN(r[manualCol]));
@@ -455,14 +400,6 @@ function runAnalysis() {
                     r.cupType = cupType;
                     r.shift = "Unassigned";
                     r.difference = r.sensor - r.cst;
-                    
-                    // Store optional fields
-                    if (selectedDensityCol && !isNaN(r[selectedDensityCol])) {
-                        r.density = r[selectedDensityCol];
-                    }
-                    if (selectedTempCol && !isNaN(r[selectedTempCol])) {
-                        r.temperature = r[selectedTempCol];
-                    }
                 });
 
                 originalPairedData = paired;
@@ -493,21 +430,9 @@ function assignShifts() {
 
 function applySensorLimits() {
     if (!originalPairedData.length) return;
-    const minInput = document.getElementById('minSensor').value;
-    const maxInput = document.getElementById('maxSensor').value;
-    
-    let filtered = [...originalPairedData];
-    
-    if (minInput !== "") {
-        const minVal = parseFloat(minInput);
-        filtered = filtered.filter(r => r.sensor >= minVal);
-    }
-    if (maxInput !== "") {
-        const maxVal = parseFloat(maxInput);
-        filtered = filtered.filter(r => r.sensor <= maxVal);
-    }
-    
-    currentFilteredData = filtered;
+    const minVal = parseFloat(document.getElementById('minSensor').value);
+    const maxVal = parseFloat(document.getElementById('maxSensor').value);
+    currentFilteredData = originalPairedData.filter(r => r.sensor >= minVal && r.sensor <= maxVal);
     renderAll();
 }
 
@@ -533,8 +458,8 @@ function applyDifferenceStdFilter() {
 function resetAllFilters() {
     if (!originalPairedData.length) return;
     currentFilteredData = [...originalPairedData];
-    document.getElementById('minSensor').value = "";
-    document.getElementById('maxSensor').value = "";
+    document.getElementById('minSensor').value = 200;
+    document.getElementById('maxSensor').value = 400;
     document.getElementById('stdMultiplier').value = 2;
     showStatus("All filters reset.");
     renderAll();
@@ -684,52 +609,25 @@ function renderDifferenceHistogram() {
     });
 }
 
+let cupChartInstance = null;
+
 function renderCupVsSensorChart() {
     if (cupChartInstance) cupChartInstance.destroy();
     const ctx = document.getElementById('cupVsSensorChart');
     const shifts = [...new Set(currentFilteredData.map(r => r.shift || "Unassigned"))];
     const colors = ['#00d4ff', '#ffaa00', '#00ff9d', '#ff6b6b'];
-    
-    // Calculate overall R² for title
-    const overallReg = linearRegression(
-        currentFilteredData.map(r => r.manual), 
-        currentFilteredData.map(r => r.sensor)
-    );
-    
-    const datasets = shifts.map((shift, i) => {
-        const shiftData = currentFilteredData.filter(r => (r.shift || "Unassigned") === shift);
-        let label = shift;
-        
-        // Add R² to legend label if shift has enough points
-        if (shiftData.length >= 2) {
-            const shiftReg = linearRegression(
-                shiftData.map(r => r.manual), 
-                shiftData.map(r => r.sensor)
-            );
-            label = `${shift} (R²=${shiftReg.r2.toFixed(3)})`;
-        }
-        
-        return {
-            label: label,
-            data: shiftData.map(r => ({x: r.manual, y: r.sensor})),
-            backgroundColor: colors[i % colors.length]
-        };
-    });
-
     cupChartInstance = new Chart(ctx, {
         type: 'scatter',
-        data: { datasets },
+        data: {
+            datasets: shifts.map((shift, i) => ({
+                label: shift,
+                data: currentFilteredData.filter(r => (r.shift || "Unassigned") === shift).map(r => ({x: r.manual, y: r.sensor})),
+                backgroundColor: colors[i % colors.length]
+            }))
+        },
         options: {
             responsive: true,
-            plugins: { 
-                legend: { position: 'top' },
-                title: {
-                    display: true,
-                    text: `Overall R² = ${overallReg.r2.toFixed(4)}`,
-                    color: '#00d4ff',
-                    font: { size: 14 }
-                }
-            },
+            plugins: { legend: { position: 'top' } },
             scales: {
                 x: { title: { display: true, text: 'Manual Cup Seconds' } },
                 y: { title: { display: true, text: 'Sensor cP' } }
@@ -740,67 +638,30 @@ function renderCupVsSensorChart() {
 
 function renderDataTable() {
     const table = document.getElementById('dataTable');
-    
-    // Dynamic header based on optional columns
-    let headerHTML = `<tr>
-        <th>Date/Time</th>
-        <th>Shift</th>
-        <th>Cup</th>
-        <th>Manual (s)</th>
-        <th>Sensor (cP)</th>
-        <th>Calculated cSt</th>
-        <th>Difference</th>`;
-    
-    if (selectedDensityCol) headerHTML += `<th>Density</th>`;
-    if (selectedTempCol) headerHTML += `<th>Temperature</th>`;
-    headerHTML += `</tr>`;
-    
-    table.querySelector('thead').innerHTML = headerHTML;
-    
+    table.querySelector('thead').innerHTML = `<tr><th>Date/Time</th><th>Shift</th><th>Cup</th><th>Manual (s)</th><th>Sensor (cP)</th><th>Calculated cSt</th><th>Difference</th></tr>`;
     const tbody = table.querySelector('tbody');
     tbody.innerHTML = '';
-    
     currentFilteredData.forEach(r => {
-        let rowHTML = `
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
             <td>${r.date || ''}</td>
             <td><strong>${r.shift || 'Unassigned'}</strong></td>
             <td>${r.cupType}</td>
             <td>${r.manual.toFixed(2)}</td>
             <td>${r.sensor.toFixed(1)}</td>
             <td>${r.cst.toFixed(1)}</td>
-            <td>${r.difference.toFixed(1)}</td>`;
-        
-        if (selectedDensityCol) {
-            rowHTML += `<td>${r.density !== undefined ? r.density.toFixed(3) : ''}</td>`;
-        }
-        if (selectedTempCol) {
-            rowHTML += `<td>${r.temperature !== undefined ? r.temperature.toFixed(1) : ''}</td>`;
-        }
-        rowHTML += `</tr>`;
-        
-        const tr = document.createElement('tr');
-        tr.innerHTML = rowHTML;
+            <td>${r.difference.toFixed(1)}</td>
+        `;
         tbody.appendChild(tr);
     });
 }
 
 function downloadCSV() {
     if (!currentFilteredData.length) return;
-    
-    let header = 'Date,Shift,Cup_Type,Manual_Seconds,Sensor_cP,Calculated_cSt,Difference';
-    if (selectedDensityCol) header += ',Density';
-    if (selectedTempCol) header += ',Temperature';
-    header += '\n';
-    
-    let csv = header;
-    
+    let csv = 'Date,Shift,Cup_Type,Manual_Seconds,Sensor_cP,Calculated_cSt,Difference\n';
     currentFilteredData.forEach(r => {
-        let line = `${r.date},${r.shift || 'Unassigned'},${r.cupType},${r.manual},${r.sensor},${r.cst},${r.difference}`;
-        if (selectedDensityCol) line += `,${r.density !== undefined ? r.density : ''}`;
-        if (selectedTempCol) line += `,${r.temperature !== undefined ? r.temperature : ''}`;
-        csv += line + '\n';
+        csv += `${r.date},${r.shift || 'Unassigned'},${r.cupType},${r.manual},${r.sensor},${r.cst},${r.difference}\n`;
     });
-    
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -808,7 +669,7 @@ function downloadCSV() {
     a.click();
 }
 
-// Fixed row 15 header detection + manual column selection
+// Fixed row 15 header detection + manual column selection (no name searching)
 function setupAutoColumnDetection() {
     document.getElementById('fileInput').addEventListener('change', function() {
         const file = this.files[0];
@@ -824,6 +685,7 @@ function setupAutoColumnDetection() {
                     showStatus("ERROR: File too short. Headers must be in row 15.", true);
                     return;
                 }
+                // Always use row 15 (0-based index 14) as header row
                 const rawHeaders = rows[14] || [];
                 const headers = rawHeaders.map(h => h ? h.toString().trim() : '').filter(h => h.length > 0);
                 
@@ -832,11 +694,11 @@ function setupAutoColumnDetection() {
                     return;
                 }
                 
-                // Populate required columns
                 const dateSel = document.getElementById('dateCol');
                 const manSel = document.getElementById('manualCol');
                 const senSel = document.getElementById('sensorCol');
                 
+                // Clear and populate all three selects with the same full list
                 dateSel.innerHTML = manSel.innerHTML = senSel.innerHTML = '';
                 headers.forEach(h => {
                     dateSel.add(new Option(h, h));
@@ -844,25 +706,12 @@ function setupAutoColumnDetection() {
                     senSel.add(new Option(h, h));
                 });
                 
-                // Pre-select by position
+                // Pre-select by position (user can change): 1st col = Date, 2nd = Manual, 3rd = Sensor
                 if (headers.length > 0) dateSel.value = headers[0];
                 if (headers.length > 1) manSel.value = headers[1];
                 if (headers.length > 2) senSel.value = headers[2];
                 
-                // Populate optional Density and Temperature selects (with -- None -- already present)
-                const densSel = document.getElementById('densityCol');
-                const tempSel = document.getElementById('tempCol');
-                
-                // Keep the first "None" option, add the rest
-                densSel.innerHTML = '<option value="">-- None --</option>';
-                tempSel.innerHTML = '<option value="">-- None --</option>';
-                
-                headers.forEach(h => {
-                    densSel.add(new Option(h, h));
-                    tempSel.add(new Option(h, h));
-                });
-                
-                showStatus("Headers loaded from row 15. Select columns + Cup Type, then click Run Analysis.");
+                showStatus("Headers loaded from row 15. Please verify the three column selections above, then click Run Analysis.");
             }
         });
     });
@@ -872,7 +721,6 @@ function setupAutoColumnDetection() {
 function initializeApp() {
     renderShiftDefinitions();
     setupAutoColumnDetection();
-    
     document.getElementById('runBtn').addEventListener('click', runAnalysis);
     document.getElementById('assignBtn').addEventListener('click', assignShifts);
     document.getElementById('resetBtn').addEventListener('click', resetShifts);
@@ -880,8 +728,7 @@ function initializeApp() {
     document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
     document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
     document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-    
-    console.log('%c[Shell Control Correlation Tool] Updated with Density/Temp + sticky sidebar + required cup + R² on scatter.', 'color:#00d4ff');
+    console.log('%c[Shell Control Correlation Tool] Reordered layout ready (collapsible shifts + numeric std input).', 'color:#00d4ff');
 }
 
 initializeApp();
