@@ -69,7 +69,7 @@
                 <select id="manualCol"></select>
             </div>
             <div>
-                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Sensor Viscosity (cP) <span style="color:#ff6b6b;">(required)</span></label>
+                <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Sensor Viscosity (cSt) <span style="color:#ff6b6b;">(required)</span></label>
                 <select id="sensorCol"></select>
             </div>
         </div>
@@ -87,14 +87,14 @@
 
         <!-- Column Preview -->
         <div id="columnPreview" style="display:none; margin-bottom:16px; background:#1a1a1a; border-radius:8px; padding:12px; border:1px solid #333;">
-            <div style="font-size:13px; color:#00d4ff; margin-bottom:8px; font-weight:600;">Column Preview — First 4 data rows (helps identify which column has your manual Zahn seconds vs sensor cP)</div>
+            <div style="font-size:13px; color:#00d4ff; margin-bottom:8px; font-weight:600;">Column Preview — First 4 data rows (helps identify which column has your manual Zahn seconds vs sensor cSt)</div>
             <div style="overflow-x:auto; max-height:180px;">
                 <table id="previewTable" style="font-size:11px; width:100%; border-collapse:collapse;">
                     <thead></thead>
                     <tbody></tbody>
                 </table>
             </div>
-            <p style="font-size:11px; color:#888; margin:8px 0 0;">Tip: Manual column usually shows sparse ~20-40s values. Sensor column shows many ~200-400 cP values. Date column shows timestamps.</p>
+            <p style="font-size:11px; color:#888; margin:8px 0 0;">Tip: Manual column usually shows sparse ~20-40s values. Sensor column shows many ~200-400 cSt values. Date column shows timestamps.</p>
         </div>
 
         <div style="margin-bottom:20px;">
@@ -141,11 +141,11 @@
                 <div class="filter-subsection">
                     <h4>Sensor Value Range Filter</h4>
                     <div style="margin-bottom:10px;">
-                        <label style="font-size:12px; color:#aaa;">Min Sensor cP (leave blank = no filter)</label>
+                        <label style="font-size:12px; color:#aaa;">Min Sensor cSt (leave blank = no filter)</label>
                         <input type="number" id="minSensor" placeholder="e.g. 200">
                     </div>
                     <div>
-                        <label style="font-size:12px; color:#aaa;">Max Sensor cP (leave blank = no filter)</label>
+                        <label style="font-size:12px; color:#aaa;">Max Sensor cSt (leave blank = no filter)</label>
                         <input type="number" id="maxSensor" placeholder="e.g. 400">
                     </div>
                 </div>
@@ -187,7 +187,7 @@
             
             <!-- Difference Stats + Histogram live inside this card -->
             <div style="margin-top:20px; padding-top:16px; border-top:1px solid #333;">
-                <h4 style="margin:0 0 8px; color:#00d4ff; font-size:14px;">Difference Statistics (Sensor cP − Calculated cSt)</h4>
+                <h4 style="margin:0 0 8px; color:#00d4ff; font-size:14px;">Difference Statistics (Sensor cSt − Calculated cSt)</h4>
                 <div id="diffStats" style="margin-bottom:12px;"></div>
                 
                 <h4 style="margin:12px 0 8px; color:#00d4ff; font-size:14px;">Difference Distribution (Histogram)</h4>
@@ -212,7 +212,7 @@
                     <div id="cupStats"></div>
                 </div>
                 <div class="stat-card">
-                    <h4>Sensor Viscosity (cP)</h4>
+                    <h4>Sensor Viscosity (cSt)</h4>
                     <div id="sensorStats"></div>
                 </div>
             </div>
@@ -223,7 +223,7 @@
 
         <!-- Scatter Plot -->
         <div class="card">
-            <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
+            <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cSt (by Shift)</h3>
             <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
                 <canvas id="cupVsSensorChart" height="180"></canvas>
             </div>
@@ -525,6 +525,7 @@ function runAnalysis() {
                     r.cupType = cupType;
                     r.shift = "Unassigned";
                     r.difference = r.sensor - r.cst;
+                    r.compDifference = null;
                     
                     if (selectedDensityCol && !isNaN(r[selectedDensityCol])) {
                         r.density = r[selectedDensityCol];
@@ -532,6 +533,7 @@ function runAnalysis() {
                     if (selectedTempCol && !isNaN(r[selectedTempCol])) {
                         r.temperature = r[selectedTempCol];
                     }
+                    // compDifference will be set later in applyAllFilters / reset when temp compensation runs
                 });
 
                 originalPairedData = paired;
@@ -597,9 +599,11 @@ function applyAllFilters() {
         if (selectedTempCol && r.temperature != null && !isNaN(r.temperature)) {
             r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
             r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
+            r.compDifference = (r.compSensor != null && r.compCst != null) ? r.compSensor - r.compCst : null;
         } else {
             r.compCst = null;
             r.compSensor = null;
+            r.compDifference = null;
         }
     });
 
@@ -624,9 +628,11 @@ function resetAllFilters() {
             if (selectedTempCol && r.temperature != null && !isNaN(r.temperature)) {
                 r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
                 r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
+                r.compDifference = (r.compSensor != null && r.compCst != null) ? r.compSensor - r.compCst : null;
             } else {
                 r.compCst = null;
                 r.compSensor = null;
+                r.compDifference = null;
             }
         });
         renderAll();
@@ -658,8 +664,8 @@ function renderOverallMetrics() {
     const metrics = [
         { label: "Paired Points", value: count },
         { label: "Avg Calculated cSt", value: avgCst.toFixed(1) },
-        { label: "Avg Sensor cP", value: avgSensor.toFixed(1) },
-        { label: "Avg Difference (cP)", value: avgDiff.toFixed(1) }
+        { label: "Avg Sensor cSt", value: avgSensor.toFixed(1) },
+        { label: "Avg Difference (cSt)", value: avgDiff.toFixed(1) }
     ];
 
     metrics.forEach(m => {
@@ -801,7 +807,7 @@ function renderScatterPlot() {
             },
             scales: {
                 x: { title: { display: true, text: 'Manual Cup Seconds', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' } },
-                y: { title: { display: true, text: 'Sensor Viscosity (cP)', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' } }
+                y: { title: { display: true, text: 'Sensor Viscosity (cSt)', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' } }
             }
         }
     });
@@ -816,9 +822,21 @@ function renderDataTable() {
     tbody.innerHTML = '';
 
     const headerRow = document.createElement('tr');
-    const baseHeaders = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cP)', 'Calculated cSt', 'Difference'];
+    
+    // New column order per user request:
+    // Date/Time, Shift, Cup, Manual (s), 
+    // Sensor (cSt), Temp Comp. Sensor cSt (if temp selected),
+    // Calculated cSt, Temp Comp. cSt (if temp selected),
+    // Density (if selected), Temp (°C) (if selected),
+    // Difference, Temp Comp. Difference (if temp selected)
+    let baseHeaders = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cSt)'];
+    if (selectedTempCol) baseHeaders.push('Temp Comp. Sensor cSt');
+    baseHeaders.push('Calculated cSt');
+    if (selectedTempCol) baseHeaders.push('Temp Comp. cSt');
     if (selectedDensityCol) baseHeaders.push('Density');
-    if (selectedTempCol) baseHeaders.push('Temp (°C)', 'Comp. cSt', 'Comp. Sensor cP');
+    if (selectedTempCol) baseHeaders.push('Temp (°C)');
+    baseHeaders.push('Difference');
+    if (selectedTempCol) baseHeaders.push('Temp Comp. Difference');
     
     baseHeaders.forEach(h => {
         const th = document.createElement('th');
@@ -835,18 +853,23 @@ function renderDataTable() {
             <td>${r.cupType}</td>
             <td>${r.manual.toFixed(2)}</td>
             <td>${r.sensor.toFixed(1)}</td>
-            <td>${r.cst.toFixed(1)}</td>
-            <td>${r.difference.toFixed(1)}</td>
         `;
+        if (selectedTempCol) {
+            html += `<td>${r.compSensor != null ? r.compSensor.toFixed(1) : '—'}</td>`;
+        }
+        html += `<td>${r.cst.toFixed(1)}</td>`;
+        if (selectedTempCol) {
+            html += `<td>${r.compCst != null ? r.compCst.toFixed(1) : '—'}</td>`;
+        }
         if (selectedDensityCol) {
             html += `<td>${r.density != null ? r.density.toFixed(2) : '—'}</td>`;
         }
         if (selectedTempCol) {
-            html += `
-                <td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>
-                <td>${r.compCst != null ? r.compCst.toFixed(1) : '—'}</td>
-                <td>${r.compSensor != null ? r.compSensor.toFixed(1) : '—'}</td>
-            `;
+            html += `<td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>`;
+        }
+        html += `<td>${r.difference.toFixed(1)}</td>`;
+        if (selectedTempCol) {
+            html += `<td>${r.compDifference != null ? r.compDifference.toFixed(1) : '—'}</td>`;
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
@@ -916,11 +939,71 @@ function renderDifferenceStatsAndHistogram() {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                x: { title: { display: true, text: 'Difference (cP)', color: '#aaa', font: { size: 11 } }, grid: { color: '#333' }, ticks: { color: '#aaa', font: { size: 10 } } },
+                x: { title: { display: true, text: 'Difference (cSt)', color: '#aaa', font: { size: 11 } }, grid: { color: '#333' }, ticks: { color: '#aaa', font: { size: 10 } } },
                 y: { title: { display: true, text: 'Frequency', color: '#aaa', font: { size: 11 } }, grid: { color: '#333' }, ticks: { color: '#aaa', font: { size: 10 } } }
             }
         }
     });
+}
+
+// Download CSV matching the current table columns and new order
+function downloadCSV() {
+    if (!currentFilteredData.length) {
+        alert("No data to export. Run analysis first.");
+        return;
+    }
+    
+    let csv = '';
+    
+    // Build header row matching the new table order
+    let headers = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cSt)'];
+    if (selectedTempCol) headers.push('Temp Comp. Sensor cSt');
+    headers.push('Calculated cSt');
+    if (selectedTempCol) headers.push('Temp Comp. cSt');
+    if (selectedDensityCol) headers.push('Density');
+    if (selectedTempCol) headers.push('Temp (°C)');
+    headers.push('Difference');
+    if (selectedTempCol) headers.push('Temp Comp. Difference');
+    
+    csv += headers.join(',') + '\n';
+    
+    currentFilteredData.forEach(r => {
+        let row = [
+            r.date || '',
+            r.shift || 'Unassigned',
+            r.cupType,
+            r.manual.toFixed(2),
+            r.sensor.toFixed(1)
+        ];
+        if (selectedTempCol) {
+            row.push(r.compSensor != null ? r.compSensor.toFixed(1) : '');
+        }
+        row.push(r.cst.toFixed(1));
+        if (selectedTempCol) {
+            row.push(r.compCst != null ? r.compCst.toFixed(1) : '');
+        }
+        if (selectedDensityCol) {
+            row.push(r.density != null ? r.density.toFixed(2) : '');
+        }
+        if (selectedTempCol) {
+            row.push(r.temperature != null ? r.temperature.toFixed(1) : '');
+        }
+        row.push(r.difference.toFixed(1));
+        if (selectedTempCol) {
+            row.push(r.compDifference != null ? r.compDifference.toFixed(1) : '');
+        }
+        csv += row.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'investment_casting_slurry_correlation.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // ================== EVENT LISTENERS ==================
@@ -1011,6 +1094,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // UNIFIED FILTER BUTTONS
     document.getElementById('applyAllFiltersBtn').addEventListener('click', applyAllFilters);
     document.getElementById('resetAllFiltersBtn').addEventListener('click', resetAllFilters);
+
+    // Download CSV button
+    document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
 
     // Initial shift definitions
     renderShiftDefinitions();
