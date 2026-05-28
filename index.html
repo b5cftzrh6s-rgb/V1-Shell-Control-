@@ -166,11 +166,11 @@
                 <!-- Temperature Compensation Sub-section -->
                 <div class="filter-subsection">
                     <h4>Temperature Compensation</h4>
-                    <p style="font-size:11px; color:#888; margin:0 0 10px;">Only applies if Temperature column was selected above.</p>
+                    <p style="font-size:11px; color:#888; margin:0 0 10px;">Reference temp in °F. Coefficient is % per °C (standard for slurries). Only applies if Temperature column was selected.</p>
                     
                     <div style="margin-bottom:10px;">
-                        <label style="font-size:12px; color:#aaa;">Reference Temperature (°C)</label>
-                        <input type="number" id="refTemp" value="25" step="0.5">
+                        <label style="font-size:12px; color:#aaa;">Reference Temperature (°F)</label>
+                        <input type="number" id="refTemp" value="77" step="0.5">
                     </div>
                     <div>
                         <label style="font-size:12px; color:#aaa;">Temperature Coefficient (% per °C)</label>
@@ -388,13 +388,16 @@ function linearRegression(x, y) {
     return { slope, intercept, r2 };
 }
 
-// Temperature compensation formula
-function calculateCompensatedViscosity(measuredViscosity, measuredTemp, refTemp, coeffPercent) {
-    if (!measuredViscosity || isNaN(measuredViscosity) || !measuredTemp || isNaN(measuredTemp)) {
+// Temperature compensation formula (inputs in °F, coefficient is per °C)
+function calculateCompensatedViscosity(measuredViscosity, measuredTempF, refTempF, coeffPercent) {
+    if (!measuredViscosity || isNaN(measuredViscosity) || !measuredTempF || isNaN(measuredTempF)) {
         return null;
     }
+    // Convert °F to °C for delta calculation (standard practice)
+    const measuredTempC = (measuredTempF - 32) * 5 / 9;
+    const refTempC = (refTempF - 32) * 5 / 9;
     const coeff = coeffPercent / 100;
-    return measuredViscosity * (1 + coeff * (refTemp - measuredTemp));
+    return measuredViscosity * (1 + coeff * (refTempC - measuredTempC));
 }
 
 // Robust blank-filling function for any target column (Sensor or Temperature)
@@ -509,6 +512,11 @@ function runAnalysis() {
                     fillBlanksForManualRows(df, selectedTempCol, manualCol);
                 }
 
+                // === NEW: Same blank filling logic for DENSITY if selected ===
+                if (selectedDensityCol) {
+                    fillBlanksForManualRows(df, selectedDensityCol, manualCol);
+                }
+
                 // Final paired dataset: must have valid manual AND sensor
                 let paired = df.filter(r => !isNaN(r[manualCol]) && !isNaN(r[sensorCol]));
                 
@@ -529,11 +537,15 @@ function runAnalysis() {
                     
                     if (selectedDensityCol && !isNaN(r[selectedDensityCol])) {
                         r.density = r[selectedDensityCol];
+                        r.densitySensorCst = r.density * r.sensor;
+                    } else {
+                        r.densitySensorCst = null;
                     }
+                    r.densityCompSensorCst = null;
                     if (selectedTempCol && !isNaN(r[selectedTempCol])) {
                         r.temperature = r[selectedTempCol];
                     }
-                    // compDifference will be set later in applyAllFilters / reset when temp compensation runs
+                    // comp* and densityComp* values will be set later in applyAllFilters / reset when temp compensation runs
                 });
 
                 originalPairedData = paired;
@@ -565,7 +577,7 @@ function applyAllFilters() {
     const minInput = document.getElementById('minSensor').value;
     const maxInput = document.getElementById('maxSensor').value;
     const stdMultInput = document.getElementById('stdMultiplier').value;
-    const refTemp = parseFloat(document.getElementById('refTemp').value) || 25;
+    const refTemp = parseFloat(document.getElementById('refTemp').value) || 77;
     const tempCoeff = parseFloat(document.getElementById('tempCoeff').value) || 2.5;
 
     let filtered = [...originalPairedData];
@@ -600,10 +612,18 @@ function applyAllFilters() {
             r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
             r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
             r.compDifference = (r.compSensor != null && r.compCst != null) ? r.compSensor - r.compCst : null;
+            
+            // Density × Compensated values
+            if (selectedDensityCol && r.density != null) {
+                r.densityCompSensorCst = r.density * r.compSensor;
+            } else {
+                r.densityCompSensorCst = null;
+            }
         } else {
             r.compCst = null;
             r.compSensor = null;
             r.compDifference = null;
+            r.densityCompSensorCst = null;
         }
     });
 
@@ -616,23 +636,30 @@ function resetAllFilters() {
     document.getElementById('minSensor').value = '';
     document.getElementById('maxSensor').value = '';
     document.getElementById('stdMultiplier').value = '';
-    document.getElementById('refTemp').value = '25';
+    document.getElementById('refTemp').value = '77';
     document.getElementById('tempCoeff').value = '2.5';
     
     if (originalPairedData.length) {
         currentFilteredData = [...originalPairedData];
         // Re-calculate compensated values with defaults
-        const refTemp = 25;
+        const refTemp = 77;
         const tempCoeff = 2.5;
         currentFilteredData.forEach(r => {
             if (selectedTempCol && r.temperature != null && !isNaN(r.temperature)) {
                 r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
                 r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
                 r.compDifference = (r.compSensor != null && r.compCst != null) ? r.compSensor - r.compCst : null;
+                
+                if (selectedDensityCol && r.density != null) {
+                    r.densityCompSensorCst = r.density * r.compSensor;
+                } else {
+                    r.densityCompSensorCst = null;
+                }
             } else {
                 r.compCst = null;
                 r.compSensor = null;
                 r.compDifference = null;
+                r.densityCompSensorCst = null;
             }
         });
         renderAll();
@@ -823,18 +850,23 @@ function renderDataTable() {
 
     const headerRow = document.createElement('tr');
     
-    // New column order per user request:
-    // Date/Time, Shift, Cup, Manual (s), 
-    // Sensor (cSt), Temp Comp. Sensor cSt (if temp selected),
-    // Calculated cSt, Temp Comp. cSt (if temp selected),
-    // Density (if selected), Temp (°C) (if selected),
-    // Difference, Temp Comp. Difference (if temp selected)
+    // Desired column order:
+    // Date/Time | Shift | Cup | Manual (s)
+    // Sensor (cSt) | Temp Comp. Sensor cSt (if temp)
+    // Calculated cSt | Temp Comp. cSt (if temp)
+    // Density (if selected) | Density × Sensor cSt | Density × Temp Comp. Sensor cSt (if applicable)
+    // Temp (°F)
+    // Difference | Temp Comp. Difference (if temp)
     let baseHeaders = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cSt)'];
     if (selectedTempCol) baseHeaders.push('Temp Comp. Sensor cSt');
     baseHeaders.push('Calculated cSt');
     if (selectedTempCol) baseHeaders.push('Temp Comp. cSt');
-    if (selectedDensityCol) baseHeaders.push('Density');
-    if (selectedTempCol) baseHeaders.push('Temp (°C)');
+    if (selectedDensityCol) {
+        baseHeaders.push('Density');
+        baseHeaders.push('Density × Sensor cSt');
+        if (selectedTempCol) baseHeaders.push('Density × Temp Comp. cSt');
+    }
+    if (selectedTempCol) baseHeaders.push('Temp (°F)');
     baseHeaders.push('Difference');
     if (selectedTempCol) baseHeaders.push('Temp Comp. Difference');
     
@@ -863,6 +895,10 @@ function renderDataTable() {
         }
         if (selectedDensityCol) {
             html += `<td>${r.density != null ? r.density.toFixed(2) : '—'}</td>`;
+            html += `<td>${r.densitySensorCst != null ? r.densitySensorCst.toFixed(1) : '—'}</td>`;
+            if (selectedTempCol) {
+                html += `<td>${r.densityCompSensorCst != null ? r.densityCompSensorCst.toFixed(1) : '—'}</td>`;
+            }
         }
         if (selectedTempCol) {
             html += `<td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>`;
@@ -955,13 +991,17 @@ function downloadCSV() {
     
     let csv = '';
     
-    // Build header row matching the new table order
+    // Build header row matching the new table order exactly
     let headers = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cSt)'];
     if (selectedTempCol) headers.push('Temp Comp. Sensor cSt');
     headers.push('Calculated cSt');
     if (selectedTempCol) headers.push('Temp Comp. cSt');
-    if (selectedDensityCol) headers.push('Density');
-    if (selectedTempCol) headers.push('Temp (°C)');
+    if (selectedDensityCol) {
+        headers.push('Density');
+        headers.push('Density × Sensor cSt');
+        if (selectedTempCol) headers.push('Density × Temp Comp. cSt');
+    }
+    if (selectedTempCol) headers.push('Temp (°F)');
     headers.push('Difference');
     if (selectedTempCol) headers.push('Temp Comp. Difference');
     
@@ -984,6 +1024,10 @@ function downloadCSV() {
         }
         if (selectedDensityCol) {
             row.push(r.density != null ? r.density.toFixed(2) : '');
+            row.push(r.densitySensorCst != null ? r.densitySensorCst.toFixed(1) : '');
+            if (selectedTempCol) {
+                row.push(r.densityCompSensorCst != null ? r.densityCompSensorCst.toFixed(1) : '');
+            }
         }
         if (selectedTempCol) {
             row.push(r.temperature != null ? r.temperature.toFixed(1) : '');
