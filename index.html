@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shell Control Correlation Tool</title>
+    <title>Investment Casting Slurry Tank Tool</title>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
@@ -28,28 +28,36 @@
         .stat-row:last-child { border-bottom:none; }
         .stat-label { color:#aaa; }
         .stat-value { font-weight:600; color:#fff; }
-        .filter-controls { display:flex; gap:12px; align-items:flex-end; margin-top:12px; }
         details.card summary { cursor: pointer; font-weight: 600; color: #00d4ff; list-style: none; padding: 4px 0; }
         details.card summary::-webkit-details-marker { display: none; }
         details.card[open] summary { margin-bottom: 12px; }
         
-        /* Responsive two-column filters at top of results */
-        .top-filters {
+        .unified-filter-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 20px;
+        }
+        .filter-subsection {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid #333;
+        }
+        .filter-subsection h4 {
+            margin: 0 0 10px;
+            color: #00d4ff;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1 style="background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent; margin:0 0 8px;">Shell Control Correlation Tool</h1>
-    <p style="color:#888; margin:0 0 24px;">Zircon Prime Slurry • Calculated cSt vs Sensor + Difference Validation</p>
+    <h1 style="background:linear-gradient(90deg,#00d4ff,#00ff9d);-webkit-background-clip:text;-webkit-text-fill-color:transparent; margin:0 0 8px; font-size:28px; line-height:1.2;">Investment Casting Slurry Tank Tool for Correlating Manual Viscosities to a Sensor Output</h1>
 
-    <!-- Upload Section (always at top) -->
+    <!-- 1. Upload Section -->
     <div class="card">
         <h3 class="section-title">1. Upload Raw Export CSV</h3>
-        <input type="file" id="fileInput" accept=".csv" style="width:100%; margin-bottom:16px;">
+        <input type="file" id="fileInput" accept=".csv" style="width:100%; margin-bottom:16px;" onchange="resetUIOnNewFile()">
         
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:16px;">
             <div>
@@ -66,19 +74,14 @@
             </div>
         </div>
 
-        <!-- Optional Density and Temperature columns -->
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
             <div>
                 <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Density (optional)</label>
-                <select id="densityCol">
-                    <option value="">-- None --</option>
-                </select>
+                <select id="densityCol"><option value="">-- None --</option></select>
             </div>
             <div>
                 <label style="display:block; margin-bottom:6px; color:#aaa; font-size:14px;">Temperature (optional)</label>
-                <select id="tempCol">
-                    <option value="">-- None --</option>
-                </select>
+                <select id="tempCol"><option value="">-- None --</option></select>
             </div>
         </div>
 
@@ -95,7 +98,7 @@
         </div>
 
         <div style="margin-bottom:20px;">
-            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Select Cup <span style="color:#ff6b6b;">(required)</span></label>
+            <label style="display:block; margin-bottom:6px; color:#aaa; font-weight:600;">Select Cup <span style="color:#ff6b6b;">(required — no default)</span></label>
             <select id="cupType">
                 <option value="">-- Select Cup Type --</option>
                 <option value="EZ-Zahn4">EZ-Zahn4</option>
@@ -111,11 +114,11 @@
         <div id="status"></div>
     </div>
 
-    <!-- Shift Definitions - Collapsible, starts closed -->
+    <!-- 2. Shift Definitions (collapsible, starts closed) -->
     <details class="card">
         <summary style="font-size:15px; color:#00d4ff; font-weight:600;">2. Shift Definitions (Optional — Click to expand)</summary>
         <div style="padding-top:8px;">
-            <p style="color:#888; margin:0 0 12px; font-size:14px;">Edit shift names and start times. Shifts are assigned automatically based on time of day. This section is optional.</p>
+            <p style="color:#888; margin:0 0 12px; font-size:14px;">Edit shift names and start times. Shifts are assigned automatically based on time of day.</p>
             <div id="shiftDefs" style="display:grid; gap:12px;"></div>
             <div style="margin-top:16px; display:flex; gap:12px;">
                 <button id="assignBtn" style="flex:1;">Assign Shifts</button>
@@ -127,82 +130,71 @@
     <!-- Results Section -->
     <div id="resultsSection" style="display:none;">
         
-        <!-- TOP FILTERS: Sensor Range + STD Filter (right below shifts) -->
-        <div class="top-filters">
+        <!-- 3. UNIFIED FILTERS CARD (Sensor Range + Statistical STD + Temperature Compensation) -->
+        <div class="card">
+            <h3 class="section-title">3. Filters &amp; Temperature Compensation</h3>
+            <p style="color:#888; font-size:13px; margin:0 0 16px;">Change any values below, then click <strong>Apply All Filters &amp; Recalculate</strong> once. Nothing updates until you commit.</p>
             
-            <!-- Sensor Value Range Filter -->
-            <div class="card">
-                <h3 class="section-title">3. Sensor Value Range Filter</h3>
-                <div class="filter-controls" style="flex-direction:column; align-items:stretch;">
-                    <div>
-                        <label style="font-size:13px; color:#aaa;">Min Sensor cP (leave blank for no filter)</label>
+            <div class="unified-filter-grid">
+                
+                <!-- Sensor Range Sub-section -->
+                <div class="filter-subsection">
+                    <h4>Sensor Value Range Filter</h4>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:12px; color:#aaa;">Min Sensor cP (leave blank = no filter)</label>
                         <input type="number" id="minSensor" placeholder="e.g. 200">
                     </div>
                     <div>
-                        <label style="font-size:13px; color:#aaa;">Max Sensor cP (leave blank for no filter)</label>
+                        <label style="font-size:12px; color:#aaa;">Max Sensor cP (leave blank = no filter)</label>
                         <input type="number" id="maxSensor" placeholder="e.g. 400">
                     </div>
-                    <div>
-                        <button id="applySensorLimitsBtn" style="width:100%;">Apply Sensor Limits</button>
-                    </div>
-                </div>
-                <p style="color:#888; font-size:12px; margin-top:10px;">Filters all charts, statistics, and table below.</p>
-            </div>
-
-            <!-- Difference STD Filter -->
-            <div class="card">
-                <h3 class="section-title">4. Statistical Filter (Std Dev of Difference)</h3>
-                
-                <div style="margin-bottom:12px;">
-                    <label style="font-size:13px; color:#aaa;">Keep within (numeric value only)</label>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="number" id="stdMultiplier" step="0.5" min="0.5" max="5" style="width:90px; padding:10px;">
-                        <span style="color:#aaa; white-space:nowrap;">× Std Dev</span>
-                    </div>
                 </div>
                 
-                <button id="applyDiffFilterBtn" style="width:100%; margin-bottom:8px;">Apply Difference Std Filter</button>
-                <button id="resetFiltersBtn" class="secondary" style="width:100%;">Reset All Filters</button>
+                <!-- Statistical STD Filter Sub-section -->
+                <div class="filter-subsection">
+                    <h4>Statistical Filter (Difference Std Dev)</h4>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:12px; color:#aaa;">Keep within (numeric value only)</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="number" id="stdMultiplier" step="0.5" min="0.5" max="5" placeholder="e.g. 2.0" style="width:90px;">
+                            <span style="color:#aaa; white-space:nowrap;">× Std Dev</span>
+                        </div>
+                    </div>
+                    <p style="font-size:11px; color:#888; margin:8px 0 0;">Keeps points where |Difference − Mean| ≤ X × StdDev. Statistically sound validation.</p>
+                </div>
                 
-                <p style="font-size:12px; color:#888; margin-top:10px;">Keeps only points where |Difference − Mean| ≤ X × StdDev. Statistically sound validation of manual measurements.</p>
-                
-                <!-- Difference Stats + Histogram inside this card -->
-                <div style="margin-top:16px; padding-top:16px; border-top:1px solid #333;">
-                    <h4 style="margin:0 0 8px; color:#00d4ff; font-size:14px;">Difference Statistics</h4>
-                    <div id="diffStats" style="margin-bottom:12px;"></div>
+                <!-- Temperature Compensation Sub-section -->
+                <div class="filter-subsection">
+                    <h4>Temperature Compensation</h4>
+                    <p style="font-size:11px; color:#888; margin:0 0 10px;">Only applies if Temperature column was selected above.</p>
                     
-                    <h4 style="margin:12px 0 8px; color:#00d4ff; font-size:14px;">Difference Distribution (Histogram)</h4>
-                    <div style="background:#1a1a1a; border-radius:12px; padding:12px;">
-                        <canvas id="differenceHistogram" height="110"></canvas>
+                    <div style="margin-bottom:10px;">
+                        <label style="font-size:12px; color:#aaa;">Reference Temperature (°C)</label>
+                        <input type="number" id="refTemp" value="25" step="0.5">
+                    </div>
+                    <div>
+                        <label style="font-size:12px; color:#aaa;">Temperature Coefficient (% per °C)</label>
+                        <input type="number" id="tempCoeff" value="2.5" step="0.1">
+                        <div style="font-size:10px; color:#888; margin-top:4px;">Typical range for investment casting slurries: 2.0 – 4.0</div>
                     </div>
                 </div>
             </div>
             
-            <!-- Temperature Compensation Card -->
-            <div class="card" id="tempCompCard" style="display: none;">
-                <h3 class="section-title">5. Temperature Compensation</h3>
-                <p style="font-size:12px; color:#888; margin:0 0 12px;">Applies when Temperature column is selected. Simple linear correction for slurry viscosity temperature dependence.</p>
-                
-                <div style="display:grid; gap:10px;">
-                    <div>
-                        <label style="font-size:13px; color:#aaa;">Reference Temperature (°C)</label>
-                        <input type="number" id="refTemp" value="25" step="0.5" style="width:100%;">
-                    </div>
-                    <div>
-                        <label style="font-size:13px; color:#aaa;">Temperature Coefficient (% per °C)</label>
-                        <input type="number" id="tempCoeff" value="2.5" step="0.1" style="width:100%;">
-                        <div style="font-size:11px; color:#888; margin-top:4px;">Typical for zircon/colloidal silica slurries: 2.0 – 4.0. Measure your slurry at two temps to determine exact value if needed.</div>
-                    </div>
-                </div>
-                
-                <button id="applyTempCompBtn" style="width:100%; margin-top:12px;">Apply / Recalculate Compensated Values</button>
-                
-                <div style="margin-top:12px; padding-top:12px; border-top:1px solid #333; font-size:12px; color:#888;">
-                    Formula: <strong>Compensated = Measured × (1 + (coeff/100) × (T_ref − T_meas))</strong><br>
-                    Adjusts viscosity upward if measured hot (viscosity drops with higher temp).
-                </div>
+            <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+                <button id="applyAllFiltersBtn" style="flex:1; min-width:220px;">Apply All Filters &amp; Recalculate</button>
+                <button id="resetAllFiltersBtn" class="secondary" style="flex:0.6; min-width:140px;">Reset All Filters</button>
             </div>
             
+            <!-- Difference Stats + Histogram live inside this card -->
+            <div style="margin-top:20px; padding-top:16px; border-top:1px solid #333;">
+                <h4 style="margin:0 0 8px; color:#00d4ff; font-size:14px;">Difference Statistics (Sensor cP − Calculated cSt)</h4>
+                <div id="diffStats" style="margin-bottom:12px;"></div>
+                
+                <h4 style="margin:12px 0 8px; color:#00d4ff; font-size:14px;">Difference Distribution (Histogram)</h4>
+                <div style="background:#1a1a1a; border-radius:12px; padding:12px;">
+                    <canvas id="differenceHistogram" height="110"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Overall Results -->
@@ -229,19 +221,19 @@
         <!-- Per-Shift Results -->
         <div id="perShiftResults"></div>
 
-        <!-- Interactive Scatter Plot -->
+        <!-- Scatter Plot -->
         <div class="card">
             <h3 class="section-title">Scatter Plot: Manual Cup Seconds vs Sensor cP (by Shift)</h3>
             <div style="background:#1a1a1a; border-radius:12px; padding:16px;">
                 <canvas id="cupVsSensorChart" height="180"></canvas>
             </div>
-            <p style="font-size:12px; color:#888; margin-top:8px;">R² shown in chart title and legend when shifts are assigned.</p>
+            <p style="font-size:12px; color:#888; margin-top:8px;">R² shown in chart title and legend when shifts are assigned. Main analysis uses raw measured values.</p>
         </div>
 
         <!-- Data Table -->
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                <h3 class="section-title" style="margin:0;">Data Table (with Difference column)</h3>
+                <h3 class="section-title" style="margin:0;">Data Table (with Difference + Compensated columns)</h3>
                 <button id="downloadBtn" style="padding:10px 20px; font-size:14px;">Download CSV</button>
             </div>
             <div style="max-height:450px; overflow:auto;">
@@ -268,7 +260,6 @@ let diffHistogramChart = null;
 
 let selectedDensityCol = "";
 let selectedTempCol = "";
-let hasTemperatureCompensation = false;
 
 // ================== HELPER FUNCTIONS ==================
 function showStatus(msg, isError = false) {
@@ -276,6 +267,15 @@ function showStatus(msg, isError = false) {
     status.style.display = 'block';
     status.style.color = isError ? '#ff6b6b' : '#aaa';
     status.innerHTML = msg;
+}
+
+function resetUIOnNewFile() {
+    document.getElementById('resultsSection').style.display = 'none';
+    document.getElementById('columnPreview').style.display = 'none';
+    originalPairedData = [];
+    currentFilteredData = [];
+    if (cupChartInstance) { cupChartInstance.destroy(); cupChartInstance = null; }
+    if (diffHistogramChart) { diffHistogramChart.destroy(); diffHistogramChart = null; }
 }
 
 function renderShiftDefinitions() {
@@ -388,6 +388,52 @@ function linearRegression(x, y) {
     return { slope, intercept, r2 };
 }
 
+// Temperature compensation formula
+function calculateCompensatedViscosity(measuredViscosity, measuredTemp, refTemp, coeffPercent) {
+    if (!measuredViscosity || isNaN(measuredViscosity) || !measuredTemp || isNaN(measuredTemp)) {
+        return null;
+    }
+    const coeff = coeffPercent / 100;
+    return measuredViscosity * (1 + coeff * (refTemp - measuredTemp));
+}
+
+// Robust blank-filling function for any target column (Sensor or Temperature)
+// Only fills rows that have a valid manual value, by searching for nearest valid numeric values above and below
+function fillBlanksForManualRows(df, targetCol, manualCol) {
+    for (let i = 0; i < df.length; i++) {
+        if (isNaN(df[i][manualCol])) continue; // Only process rows with manual data
+        
+        if (isNaN(df[i][targetCol])) {
+            // Search backward for nearest valid value
+            let prevVal = NaN;
+            for (let j = i - 1; j >= 0; j--) {
+                if (!isNaN(df[j][targetCol])) {
+                    prevVal = df[j][targetCol];
+                    break;
+                }
+            }
+            
+            // Search forward for nearest valid value
+            let nextVal = NaN;
+            for (let j = i + 1; j < df.length; j++) {
+                if (!isNaN(df[j][targetCol])) {
+                    nextVal = df[j][targetCol];
+                    break;
+                }
+            }
+            
+            if (!isNaN(prevVal) && !isNaN(nextVal)) {
+                df[i][targetCol] = (prevVal + nextVal) / 2;
+            } else if (!isNaN(prevVal)) {
+                df[i][targetCol] = prevVal;
+            } else if (!isNaN(nextVal)) {
+                df[i][targetCol] = nextVal;
+            }
+            // If still no valid neighbors, leave as NaN (will be filtered out later)
+        }
+    }
+}
+
 // ================== MAIN ANALYSIS ==================
 function runAnalysis() {
     const file = document.getElementById('fileInput').files[0];
@@ -424,13 +470,18 @@ function runAnalysis() {
                     return;
                 }
 
+                // Build df more permissively to keep as many rows as possible
                 let df = dataRows.map(row => {
                     let obj = {};
-                    headers.forEach((h, i) => { if (h) obj[h] = row[i]; });
+                    headers.forEach((h, i) => { 
+                        if (h) obj[h] = row[i]; 
+                    });
                     return obj;
-                }).filter(row => Object.keys(row).length > 2);
+                }).filter(row => {
+                    // Keep row if it has at least a date or some data
+                    return Object.keys(row).length >= 1;
+                });
 
-                // Get selected columns
                 const dateCol = document.getElementById('dateCol').value;
                 const manualCol = document.getElementById('manualCol').value;
                 const sensorCol = document.getElementById('sensorCol').value;
@@ -442,6 +493,7 @@ function runAnalysis() {
                     return;
                 }
 
+                // Parse numeric columns
                 df.forEach(r => {
                     r[manualCol] = parseFloat(r[manualCol]);
                     r[sensorCol] = parseFloat(r[sensorCol]);
@@ -449,21 +501,19 @@ function runAnalysis() {
                     if (selectedTempCol) r[selectedTempCol] = parseFloat(r[selectedTempCol]);
                 });
 
-                const manualRows = df.filter(r => !isNaN(r[manualCol]));
-                manualRows.forEach(row => {
-                    const idx = df.indexOf(row);
-                    if (isNaN(row[sensorCol])) {
-                        const prev = idx > 0 ? df[idx-1][sensorCol] : NaN;
-                        const next = idx < df.length-1 ? df[idx+1][sensorCol] : NaN;
-                        if (!isNaN(prev) && !isNaN(next)) row[sensorCol] = (prev + next) / 2;
-                        else if (!isNaN(prev)) row[sensorCol] = prev;
-                        else if (!isNaN(next)) row[sensorCol] = next;
-                    }
-                });
+                // === ROBUST BLANK FILLING FOR SENSOR (only on rows with manual data) ===
+                fillBlanksForManualRows(df, sensorCol, manualCol);
 
+                // === NEW: Same blank filling logic for TEMPERATURE if selected ===
+                if (selectedTempCol) {
+                    fillBlanksForManualRows(df, selectedTempCol, manualCol);
+                }
+
+                // Final paired dataset: must have valid manual AND sensor
                 let paired = df.filter(r => !isNaN(r[manualCol]) && !isNaN(r[sensorCol]));
+                
                 if (paired.length < 3) {
-                    showStatus("ERROR: Not enough paired data after cleaning (need at least 3 manual readings with sensor values).", true);
+                    showStatus("ERROR: Not enough paired data after cleaning (need at least 3 manual readings with sensor values). Got: " + paired.length, true);
                     return;
                 }
 
@@ -488,15 +538,7 @@ function runAnalysis() {
                 currentFilteredData = [...paired];
 
                 document.getElementById('resultsSection').style.display = 'block';
-                showStatus("Analysis complete! " + paired.length + " paired points found. You can now assign shifts (optional) or apply filters.");
-                
-                // Show Temperature Compensation card if Temperature column was selected
-                const tempCard = document.getElementById('tempCompCard');
-                if (selectedTempCol) {
-                    tempCard.style.display = 'block';
-                } else {
-                    tempCard.style.display = 'none';
-                }
+                showStatus("Analysis complete! " + paired.length + " paired points found. You can now assign shifts (optional) or apply filters below.");
                 
                 renderAll();
 
@@ -511,21 +553,22 @@ function runAnalysis() {
     });
 }
 
-function assignShifts() {
-    if (!originalPairedData.length) { alert("Run analysis first"); return; }
-    const active = shiftDefinitions.filter(s => s.start);
-    originalPairedData.forEach(r => { r.shift = assignShift(r.date, active); });
-    currentFilteredData = [...originalPairedData];
-    renderAll();
-}
+// ================== UNIFIED FILTER + COMPENSATION ==================
+function applyAllFilters() {
+    if (!originalPairedData.length) {
+        alert("Please run analysis first.");
+        return;
+    }
 
-function applySensorLimits() {
-    if (!originalPairedData.length) return;
     const minInput = document.getElementById('minSensor').value;
     const maxInput = document.getElementById('maxSensor').value;
-    
+    const stdMultInput = document.getElementById('stdMultiplier').value;
+    const refTemp = parseFloat(document.getElementById('refTemp').value) || 25;
+    const tempCoeff = parseFloat(document.getElementById('tempCoeff').value) || 2.5;
+
     let filtered = [...originalPairedData];
-    
+
+    // 1. Apply Sensor Range Filter (if values provided)
     if (minInput !== "") {
         const minVal = parseFloat(minInput);
         filtered = filtered.filter(r => r.sensor >= minVal);
@@ -534,261 +577,231 @@ function applySensorLimits() {
         const maxVal = parseFloat(maxInput);
         filtered = filtered.filter(r => r.sensor <= maxVal);
     }
-    
-    currentFilteredData = filtered;
-    renderAll();
-}
 
-function applyDifferenceStdFilter() {
-    if (!currentFilteredData.length) { alert("Run analysis first"); return; }
-    const multiplier = parseFloat(document.getElementById('stdMultiplier').value);
-    if (isNaN(multiplier) || multiplier <= 0) { alert("Enter a valid number (e.g. 2)"); return; }
+    // 2. Apply Statistical Difference Std Dev Filter (if value provided)
+    if (stdMultInput !== "") {
+        const multiplier = parseFloat(stdMultInput);
+        if (!isNaN(multiplier) && multiplier > 0) {
+            const diffs = filtered.map(r => r.difference);
+            if (diffs.length > 1) {
+                const meanDiff = diffs.reduce((a,b)=>a+b,0) / diffs.length;
+                const stdDev = standardDeviation(diffs);
+                const threshold = multiplier * stdDev;
+                filtered = filtered.filter(r => Math.abs(r.difference - meanDiff) <= threshold);
+            }
+        }
+    }
 
-    const diffArr = currentFilteredData.map(r => r.difference);
-    const meanDiff = diffArr.reduce((a,b)=>a+b,0) / diffArr.length;
-    const stdDiff = standardDeviation(diffArr);
-
-    if (stdDiff === 0) { alert("Std Dev is zero. Cannot filter."); return; }
-
-    const lower = meanDiff - (multiplier * stdDiff);
-    const upper = meanDiff + (multiplier * stdDiff);
-
-    currentFilteredData = currentFilteredData.filter(r => r.difference >= lower && r.difference <= upper);
-    showStatus(`Applied ±${multiplier}σ Difference filter. Kept ${currentFilteredData.length} points.`);
-    renderAll();
-}
-
-function resetAllFilters() {
-    if (!originalPairedData.length) return;
-    currentFilteredData = [...originalPairedData];
-    document.getElementById('minSensor').value = "";
-    document.getElementById('maxSensor').value = "";
-    document.getElementById('stdMultiplier').value = 2;
-    showStatus("All filters reset.");
-    renderAll();
-}
-
-function calculateTemperatureCompensation() {
-    if (!originalPairedData.length || !selectedTempCol) return;
-    
-    const refTemp = parseFloat(document.getElementById('refTemp').value) || 25;
-    const coeffPercent = parseFloat(document.getElementById('tempCoeff').value) || 2.5;
-    const k = coeffPercent / 100;
-    
-    let compensatedCount = 0;
-    
-    originalPairedData.forEach(r => {
-        if (r.temperature != null && !isNaN(r.temperature)) {
-            const deltaT = refTemp - r.temperature;
-            const factor = 1 + (k * deltaT);
-            
-            r.compCst = r.cst * factor;
-            r.compSensor = r.sensor * factor;
-            compensatedCount++;
+    // 3. Calculate Temperature Compensated values (always, if temp data exists)
+    filtered.forEach(r => {
+        if (selectedTempCol && r.temperature != null && !isNaN(r.temperature)) {
+            r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
+            r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
         } else {
             r.compCst = null;
             r.compSensor = null;
         }
     });
-    
-    currentFilteredData = [...originalPairedData];
-    hasTemperatureCompensation = true;
-    
-    showStatus(`Temperature compensation applied to ${compensatedCount} points (ref ${refTemp}°C, coeff ${coeffPercent}%).`);
+
+    currentFilteredData = filtered;
     renderAll();
+    showStatus("Filters & compensation applied. " + currentFilteredData.length + " points remaining after filtering.");
 }
 
+function resetAllFilters() {
+    document.getElementById('minSensor').value = '';
+    document.getElementById('maxSensor').value = '';
+    document.getElementById('stdMultiplier').value = '';
+    document.getElementById('refTemp').value = '25';
+    document.getElementById('tempCoeff').value = '2.5';
+    
+    if (originalPairedData.length) {
+        currentFilteredData = [...originalPairedData];
+        // Re-calculate compensated values with defaults
+        const refTemp = 25;
+        const tempCoeff = 2.5;
+        currentFilteredData.forEach(r => {
+            if (selectedTempCol && r.temperature != null && !isNaN(r.temperature)) {
+                r.compCst = calculateCompensatedViscosity(r.cst, r.temperature, refTemp, tempCoeff);
+                r.compSensor = calculateCompensatedViscosity(r.sensor, r.temperature, refTemp, tempCoeff);
+            } else {
+                r.compCst = null;
+                r.compSensor = null;
+            }
+        });
+        renderAll();
+        showStatus("All filters reset to defaults.");
+    }
+}
+
+// ================== RENDERING ==================
 function renderAll() {
+    if (!currentFilteredData.length) return;
+    
     renderOverallMetrics();
-    renderPerShiftResults();
     renderSummaryStatistics();
-    renderDifferenceValidation();
-    renderCupVsSensorChart();
-    renderDifferenceHistogram();
+    renderPerShiftResults();
+    renderScatterPlot();
     renderDataTable();
+    renderDifferenceStatsAndHistogram();
 }
 
 function renderOverallMetrics() {
     const container = document.getElementById('overallMetrics');
-    const data = currentFilteredData;
-    const n = data.length;
-    if (n === 0) { container.innerHTML = '<p style="color:#ff6b6b;">No data after filtering.</p>'; return; }
-
-    const cstArr = data.map(r => r.cst);
-    const sensorArr = data.map(r => r.sensor);
-    const avgCst = cstArr.reduce((a,b)=>a+b,0) / n;
-    const stdCst = standardDeviation(cstArr);
-    const stdSensor = standardDeviation(sensorArr);
-    const reg = linearRegression(data.map(r => r.manual), data.map(r => r.sensor));
-
-    container.innerHTML = `
-        <div class="metric"><div class="metric-value">${n}</div><div>Points</div></div>
-        <div class="metric"><div class="metric-value">${reg.r2.toFixed(4)}</div><div>R²</div></div>
-        <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div>Avg cSt</div></div>
-        <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div>Std Dev cSt</div></div>
-        <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div>Std Dev Sensor</div></div>
-    `;
-}
-
-function renderPerShiftResults() {
-    const container = document.getElementById('perShiftResults');
     container.innerHTML = '';
-    const grouped = {};
-    currentFilteredData.forEach(r => {
-        const key = r.shift || "Unassigned";
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(r);
-    });
-    Object.keys(grouped).forEach(shiftName => {
-        const data = grouped[shiftName];
-        if (data.length < 2) return;
-        const n = data.length;
-        const reg = linearRegression(data.map(r => r.manual), data.map(r => r.sensor));
-        const avgCst = data.map(r => r.cst).reduce((a,b)=>a+b,0) / n;
-        const stdCst = standardDeviation(data.map(r => r.cst));
-        const stdSensor = standardDeviation(data.map(r => r.sensor));
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-            <h3 style="margin:0 0 12px; color:#00d4ff;">${shiftName} <span style="color:#888; font-size:14px;">(n=${n})</span></h3>
-            <div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
-                <div class="metric"><div class="metric-value">${reg.r2.toFixed(3)}</div><div>R²</div></div>
-                <div class="metric"><div class="metric-value">${avgCst.toFixed(1)}</div><div>Avg cSt</div></div>
-                <div class="metric"><div class="metric-value">${stdCst.toFixed(1)}</div><div>Std Dev cSt</div></div>
-                <div class="metric"><div class="metric-value">${stdSensor.toFixed(1)}</div><div>Std Dev Sensor</div></div>
-            </div>
-        `;
-        container.appendChild(card);
+    
+    const count = currentFilteredData.length;
+    const avgCst = currentFilteredData.reduce((sum, r) => sum + (r.cst || 0), 0) / count;
+    const avgSensor = currentFilteredData.reduce((sum, r) => sum + (r.sensor || 0), 0) / count;
+    const avgDiff = currentFilteredData.reduce((sum, r) => sum + (r.difference || 0), 0) / count;
+
+    const metrics = [
+        { label: "Paired Points", value: count },
+        { label: "Avg Calculated cSt", value: avgCst.toFixed(1) },
+        { label: "Avg Sensor cP", value: avgSensor.toFixed(1) },
+        { label: "Avg Difference (cP)", value: avgDiff.toFixed(1) }
+    ];
+
+    metrics.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'metric';
+        div.innerHTML = `<div class="metric-value">${m.value}</div><div style="font-size:12px; color:#aaa;">${m.label}</div>`;
+        container.appendChild(div);
     });
 }
 
 function renderSummaryStatistics() {
     const cupContainer = document.getElementById('cupStats');
     const sensorContainer = document.getElementById('sensorStats');
-    const cupArr = currentFilteredData.map(r => r.manual);
-    const sensorArr = currentFilteredData.map(r => r.sensor);
-    if (cupArr.length === 0) { cupContainer.innerHTML = '<p>No data</p>'; sensorContainer.innerHTML = '<p>No data</p>'; return; }
+    cupContainer.innerHTML = '';
+    sensorContainer.innerHTML = '';
 
-    cupContainer.innerHTML = `
-        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(cupArr.reduce((a,b)=>a+b,0)/cupArr.length).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(cupArr).toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(cupArr).toFixed(2)}</span></div>
-    `;
-    sensorContainer.innerHTML = `
-        <div class="stat-row"><span class="stat-label">Min</span><span class="stat-value">${Math.min(...sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Max</span><span class="stat-value">${Math.max(...sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Mean</span><span class="stat-value">${(sensorArr.reduce((a,b)=>a+b,0)/sensorArr.length).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Median</span><span class="stat-value">${getMedian(sensorArr).toFixed(1)}</span></div>
-        <div class="stat-row"><span class="stat-label">Std Dev</span><span class="stat-value">${standardDeviation(sensorArr).toFixed(1)}</span></div>
-    `;
-}
+    const cupTimes = currentFilteredData.map(r => r.manual).filter(v => !isNaN(v));
+    const sensorVals = currentFilteredData.map(r => r.sensor).filter(v => !isNaN(v));
 
-function renderDifferenceValidation() {
-    const container = document.getElementById('diffStats');
-    const data = currentFilteredData;
-    if (data.length < 2) { container.innerHTML = '<p>No data</p>'; return; }
-    const diffArr = data.map(r => r.difference);
-    const meanDiff = diffArr.reduce((a,b)=>a+b,0) / diffArr.length;
-    const stdDiff = standardDeviation(diffArr);
-    const medianDiff = getMedian(diffArr);
-    container.innerHTML = `
-        <div class="stat-row"><span class="stat-label">Mean Difference</span><span class="stat-value">${meanDiff.toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Std Dev Difference</span><span class="stat-value">${stdDiff.toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Median Difference</span><span class="stat-value">${medianDiff.toFixed(2)}</span></div>
-        <div class="stat-row"><span class="stat-label">Points</span><span class="stat-value">${data.length}</span></div>
-    `;
-}
-
-function renderDifferenceHistogram() {
-    if (diffHistogramChart) diffHistogramChart.destroy();
-    const ctx = document.getElementById('differenceHistogram');
-    const data = currentFilteredData;
-    if (data.length < 5) { ctx.style.display = 'none'; return; }
-    ctx.style.display = 'block';
-
-    const diffArr = data.map(r => r.difference).sort((a,b)=>a-b);
-    const minD = diffArr[0];
-    const maxD = diffArr[diffArr.length-1];
-    const range = maxD - minD || 1;
-    const binCount = 25;
-    const binSize = range / binCount;
-    const bins = Array(binCount).fill(0);
-    const labels = [];
-
-    for (let i = 0; i < binCount; i++) {
-        const start = minD + (i * binSize);
-        labels.push(start.toFixed(1));
-        for (let j = 0; j < diffArr.length; j++) {
-            if (diffArr[j] >= start && diffArr[j] < start + binSize) bins[i]++;
-        }
+    function makeStatHTML(label, value) {
+        return `<div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`;
     }
 
-    diffHistogramChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{ label: 'Frequency', data: bins, backgroundColor: '#00d4ff' }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { title: { display: true, text: 'Difference (cP - cSt)' } },
-                y: { title: { display: true, text: 'Count' } }
-            }
-        }
+    // Cup Time stats
+    if (cupTimes.length > 0) {
+        cupContainer.innerHTML = 
+            makeStatHTML("Min", Math.min(...cupTimes).toFixed(2)) +
+            makeStatHTML("Max", Math.max(...cupTimes).toFixed(2)) +
+            makeStatHTML("Mean", (cupTimes.reduce((a,b)=>a+b,0)/cupTimes.length).toFixed(2)) +
+            makeStatHTML("Median", getMedian(cupTimes).toFixed(2)) +
+            makeStatHTML("Std Dev", standardDeviation(cupTimes).toFixed(2));
+    }
+
+    // Sensor stats
+    if (sensorVals.length > 0) {
+        sensorContainer.innerHTML = 
+            makeStatHTML("Min", Math.min(...sensorVals).toFixed(1)) +
+            makeStatHTML("Max", Math.max(...sensorVals).toFixed(1)) +
+            makeStatHTML("Mean", (sensorVals.reduce((a,b)=>a+b,0)/sensorVals.length).toFixed(1)) +
+            makeStatHTML("Median", getMedian(sensorVals).toFixed(1)) +
+            makeStatHTML("Std Dev", standardDeviation(sensorVals).toFixed(1));
+    }
+}
+
+function renderPerShiftResults() {
+    const container = document.getElementById('perShiftResults');
+    container.innerHTML = '';
+
+    const shifts = [...new Set(currentFilteredData.map(r => r.shift))].filter(s => s !== "Unassigned");
+    if (shifts.length === 0) return;
+
+    const title = document.createElement('h3');
+    title.className = 'section-title';
+    title.textContent = 'Per-Shift Correlation Results';
+    container.appendChild(title);
+
+    shifts.forEach(shiftName => {
+        const shiftData = currentFilteredData.filter(r => r.shift === shiftName);
+        if (shiftData.length < 3) return;
+
+        const x = shiftData.map(r => r.manual);
+        const y = shiftData.map(r => r.sensor);
+        const reg = linearRegression(x, y);
+        const avgCst = shiftData.reduce((sum, r) => sum + (r.cst || 0), 0) / shiftData.length;
+        const stdDevCst = standardDeviation(shiftData.map(r => r.cst).filter(v => !isNaN(v)));
+
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.style.marginBottom = '12px';
+        card.innerHTML = `
+            <h4 style="margin:0 0 12px; color:#00d4ff;">${shiftName} (${shiftData.length} points)</h4>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-row"><span class="stat-label">R²</span><span class="stat-value">${reg.r2.toFixed(4)}</span></div>
+                    <div class="stat-row"><span class="stat-label">Slope</span><span class="stat-value">${reg.slope.toFixed(3)}</span></div>
+                    <div class="stat-row"><span class="stat-label">Intercept</span><span class="stat-value">${reg.intercept.toFixed(2)}</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-row"><span class="stat-label">Avg Calculated cSt</span><span class="stat-value">${avgCst.toFixed(1)}</span></div>
+                    <div class="stat-row"><span class="stat-label">Std Dev cSt</span><span class="stat-value">${stdDevCst.toFixed(1)}</span></div>
+                    <div class="stat-row"><span class="stat-label">Avg Difference</span><span class="stat-value">${(shiftData.reduce((s,r)=>s+r.difference,0)/shiftData.length).toFixed(1)}</span></div>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
     });
 }
 
-function renderCupVsSensorChart() {
-    if (cupChartInstance) cupChartInstance.destroy();
-    const ctx = document.getElementById('cupVsSensorChart');
-    const shifts = [...new Set(currentFilteredData.map(r => r.shift || "Unassigned"))];
-    const colors = ['#00d4ff', '#ffaa00', '#00ff9d', '#ff6b6b'];
+function renderScatterPlot() {
+    const canvas = document.getElementById('cupVsSensorChart');
+    if (cupChartInstance) {
+        cupChartInstance.destroy();
+    }
+
+    const ctx = canvas.getContext('2d');
     
-    const overallReg = linearRegression(
-        currentFilteredData.map(r => r.manual), 
-        currentFilteredData.map(r => r.sensor)
-    );
-    
-    const datasets = shifts.map((shift, i) => {
-        const shiftData = currentFilteredData.filter(r => (r.shift || "Unassigned") === shift);
-        let label = shift;
+    const shifts = [...new Set(currentFilteredData.map(r => r.shift))];
+    const datasets = [];
+
+    shifts.forEach((shiftName, idx) => {
+        const shiftData = currentFilteredData.filter(r => r.shift === shiftName);
+        if (shiftData.length === 0) return;
+
+        const x = shiftData.map(r => r.manual);
+        const y = shiftData.map(r => r.sensor);
+        const reg = linearRegression(x, y);
         
-        if (shiftData.length >= 2) {
-            const shiftReg = linearRegression(
-                shiftData.map(r => r.manual), 
-                shiftData.map(r => r.sensor)
-            );
-            label = `${shift} (R²=${shiftReg.r2.toFixed(3)})`;
-        }
-        
-        return {
-            label: label,
-            data: shiftData.map(r => ({x: r.manual, y: r.sensor})),
-            backgroundColor: colors[i % colors.length]
-        };
+        const color = ['#00d4ff', '#00ff9d', '#ff6b6b', '#ffd93d'][idx % 4];
+
+        datasets.push({
+            label: shiftName + (shiftName !== "Unassigned" ? ` (R²=${reg.r2.toFixed(3)})` : ''),
+            data: shiftData.map(r => ({ x: r.manual, y: r.sensor })),
+            backgroundColor: color,
+            borderColor: color,
+            pointRadius: 5,
+            pointHoverRadius: 7
+        });
     });
+
+    // Overall regression line
+    const allX = currentFilteredData.map(r => r.manual);
+    const allY = currentFilteredData.map(r => r.sensor);
+    const overallReg = linearRegression(allX, allY);
 
     cupChartInstance = new Chart(ctx, {
         type: 'scatter',
         data: { datasets },
         options: {
             responsive: true,
-            plugins: { 
-                legend: { position: 'top' },
+            maintainAspectRatio: false,
+            plugins: {
                 title: {
                     display: true,
-                    text: `Overall R² = ${overallReg.r2.toFixed(4)}`,
-                    color: '#00d4ff',
+                    text: `Overall R² = ${overallReg.r2.toFixed(4)}  |  Slope = ${overallReg.slope.toFixed(3)}`,
+                    color: '#fff',
                     font: { size: 14 }
-                }
+                },
+                legend: { labels: { color: '#fff' } }
             },
             scales: {
-                x: { title: { display: true, text: 'Manual Cup Seconds' } },
-                y: { title: { display: true, text: 'Sensor cP' } }
+                x: { title: { display: true, text: 'Manual Cup Seconds', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' } },
+                y: { title: { display: true, text: 'Sensor Viscosity (cP)', color: '#aaa' }, grid: { color: '#333' }, ticks: { color: '#aaa' } }
             }
         }
     });
@@ -796,193 +809,212 @@ function renderCupVsSensorChart() {
 
 function renderDataTable() {
     const table = document.getElementById('dataTable');
-    
-    let headerHTML = `<tr>
-        <th>Date/Time</th>
-        <th>Shift</th>
-        <th>Cup</th>
-        <th>Manual (s)</th>
-        <th>Sensor (cP)</th>
-        <th>Calculated cSt</th>
-        <th>Difference</th>`;
-    
-    if (selectedDensityCol) headerHTML += `<th>Density</th>`;
-    if (selectedTempCol) {
-        headerHTML += `<th>Temperature</th>`;
-        headerHTML += `<th>Comp. cSt</th>`;
-        headerHTML += `<th>Comp. Sensor cP</th>`;
-    }
-    headerHTML += `</tr>`;
-    
-    table.querySelector('thead').innerHTML = headerHTML;
-    
+    const thead = table.querySelector('thead');
     const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
     
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    const headerRow = document.createElement('tr');
+    const baseHeaders = ['Date/Time', 'Shift', 'Cup', 'Manual (s)', 'Sensor (cP)', 'Calculated cSt', 'Difference'];
+    if (selectedDensityCol) baseHeaders.push('Density');
+    if (selectedTempCol) baseHeaders.push('Temp (°C)', 'Comp. cSt', 'Comp. Sensor cP');
+    
+    baseHeaders.forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+
     currentFilteredData.forEach(r => {
-        let rowHTML = `
+        const tr = document.createElement('tr');
+        let html = `
             <td>${r.date || ''}</td>
             <td><strong>${r.shift || 'Unassigned'}</strong></td>
             <td>${r.cupType}</td>
             <td>${r.manual.toFixed(2)}</td>
             <td>${r.sensor.toFixed(1)}</td>
             <td>${r.cst.toFixed(1)}</td>
-            <td>${r.difference.toFixed(1)}</td>`;
-        
+            <td>${r.difference.toFixed(1)}</td>
+        `;
         if (selectedDensityCol) {
-            rowHTML += `<td>${r.density !== undefined ? r.density.toFixed(3) : ''}</td>`;
+            html += `<td>${r.density != null ? r.density.toFixed(2) : '—'}</td>`;
         }
         if (selectedTempCol) {
-            rowHTML += `<td>${r.temperature !== undefined ? r.temperature.toFixed(1) : ''}</td>`;
-            const compCstVal = (r.compCst != null) ? r.compCst.toFixed(1) : '—';
-            const compSensorVal = (r.compSensor != null) ? r.compSensor.toFixed(1) : '—';
-            rowHTML += `<td>${compCstVal}</td>`;
-            rowHTML += `<td>${compSensorVal}</td>`;
+            html += `
+                <td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>
+                <td>${r.compCst != null ? r.compCst.toFixed(1) : '—'}</td>
+                <td>${r.compSensor != null ? r.compSensor.toFixed(1) : '—'}</td>
+            `;
         }
-        rowHTML += `</tr>`;
-        
-        const tr = document.createElement('tr');
-        tr.innerHTML = rowHTML;
+        tr.innerHTML = html;
         tbody.appendChild(tr);
     });
 }
 
-function downloadCSV() {
+function renderDifferenceStatsAndHistogram() {
+    const statsContainer = document.getElementById('diffStats');
+    statsContainer.innerHTML = '';
+
     if (!currentFilteredData.length) return;
-    
-    let header = 'Date,Shift,Cup_Type,Manual_Seconds,Sensor_cP,Calculated_cSt,Difference';
-    if (selectedDensityCol) header += ',Density';
-    if (selectedTempCol) {
-        header += ',Temperature,Comp_cSt,Comp_Sensor_cP';
+
+    const diffs = currentFilteredData.map(r => r.difference).filter(v => !isNaN(v));
+    if (diffs.length === 0) return;
+
+    const mean = diffs.reduce((a,b)=>a+b,0) / diffs.length;
+    const stdDev = standardDeviation(diffs);
+    const median = getMedian(diffs);
+
+    statsContainer.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; font-size:13px;">
+            <div><span style="color:#aaa;">Mean:</span> <strong>${mean.toFixed(2)}</strong></div>
+            <div><span style="color:#aaa;">Std Dev:</span> <strong>${stdDev.toFixed(2)}</strong></div>
+            <div><span style="color:#aaa;">Median:</span> <strong>${median.toFixed(2)}</strong></div>
+        </div>
+    `;
+
+    // Histogram
+    const canvas = document.getElementById('differenceHistogram');
+    if (diffHistogramChart) {
+        diffHistogramChart.destroy();
     }
-    header += '\n';
-    
-    let csv = header;
-    
-    currentFilteredData.forEach(r => {
-        let line = `${r.date},${r.shift || 'Unassigned'},${r.cupType},${r.manual},${r.sensor},${r.cst},${r.difference}`;
-        if (selectedDensityCol) line += `,${r.density !== undefined ? r.density : ''}`;
-        if (selectedTempCol) {
-            line += `,${r.temperature !== undefined ? r.temperature : ''}`;
-            line += `,${r.compCst != null ? r.compCst : ''}`;
-            line += `,${r.compSensor != null ? r.compSensor : ''}`;
-        }
-        csv += line + '\n';
+    const ctx = canvas.getContext('2d');
+
+    const minD = Math.min(...diffs);
+    const maxD = Math.max(...diffs);
+    const binCount = 12;
+    const binSize = (maxD - minD) / binCount;
+    const bins = Array(binCount).fill(0);
+
+    diffs.forEach(d => {
+        let idx = Math.floor((d - minD) / binSize);
+        if (idx >= binCount) idx = binCount - 1;
+        if (idx < 0) idx = 0;
+        bins[idx]++;
     });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'shell_control_correlation.csv';
-    a.click();
+
+    const labels = [];
+    for (let i = 0; i < binCount; i++) {
+        labels.push((minD + i * binSize).toFixed(0));
+    }
+
+    diffHistogramChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Count',
+                data: bins,
+                backgroundColor: '#00d4ff',
+                borderColor: '#00a8cc',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { title: { display: true, text: 'Difference (cP)', color: '#aaa', font: { size: 11 } }, grid: { color: '#333' }, ticks: { color: '#aaa', font: { size: 10 } } },
+                y: { title: { display: true, text: 'Frequency', color: '#aaa', font: { size: 11 } }, grid: { color: '#333' }, ticks: { color: '#aaa', font: { size: 10 } } }
+            }
+        }
+    });
 }
 
-// Fixed row 15 header detection + manual column selection + preview
-function setupAutoColumnDetection() {
-    document.getElementById('fileInput').addEventListener('change', function() {
-        const file = this.files[0];
+// ================== EVENT LISTENERS ==================
+document.addEventListener('DOMContentLoaded', function() {
+    // File upload + column preview
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
         if (!file) return;
-        
-        document.getElementById('resultsSection').style.display = 'none';
-        const previewDivClear = document.getElementById('columnPreview');
-        if (previewDivClear) previewDivClear.style.display = 'none';
-        const cupSel = document.getElementById('cupType');
-        if (cupSel) cupSel.value = '';
-        originalPairedData = [];
-        currentFilteredData = [];
-        
-        showStatus("Loading file headers from row 15...");
+
         Papa.parse(file, {
             header: false,
-            preview: 30,
+            preview: 20,
             complete: function(results) {
                 const rows = results.data;
-                if (rows.length < 15) {
-                    showStatus("ERROR: File too short. Headers must be in row 15.", true);
-                    return;
-                }
+                if (rows.length < 16) return;
+
                 const rawHeaders = rows[14] || [];
                 const headers = rawHeaders.map(h => h ? h.toString().trim() : '').filter(h => h.length > 0);
-                
-                if (headers.length < 3) {
-                    showStatus("ERROR: Could not read at least 3 columns from row 15.", true);
-                    return;
-                }
-                
-                const dateSel = document.getElementById('dateCol');
-                const manSel = document.getElementById('manualCol');
-                const senSel = document.getElementById('sensorCol');
-                
-                dateSel.innerHTML = manSel.innerHTML = senSel.innerHTML = '';
-                headers.forEach(h => {
-                    dateSel.add(new Option(h, h));
-                    manSel.add(new Option(h, h));
-                    senSel.add(new Option(h, h));
+
+                // Populate all dropdowns
+                const selects = ['dateCol', 'manualCol', 'sensorCol', 'densityCol', 'tempCol'];
+                selects.forEach(id => {
+                    const sel = document.getElementById(id);
+                    sel.innerHTML = '';
+                    if (id === 'densityCol' || id === 'tempCol') {
+                        const noneOpt = document.createElement('option');
+                        noneOpt.value = '';
+                        noneOpt.textContent = '-- None --';
+                        sel.appendChild(noneOpt);
+                    }
+                    headers.forEach((h, idx) => {
+                        const opt = document.createElement('option');
+                        opt.value = h;
+                        opt.textContent = h;
+                        // Pre-select first 3 columns for required fields
+                        if (id === 'dateCol' && idx === 0) opt.selected = true;
+                        if (id === 'manualCol' && idx === 1) opt.selected = true;
+                        if (id === 'sensorCol' && idx === 2) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
                 });
-                
-                if (headers.length > 0) dateSel.value = headers[0];
-                if (headers.length > 1) manSel.value = headers[1];
-                if (headers.length > 2) senSel.value = headers[2];
-                
-                const densSel = document.getElementById('densityCol');
-                const tempSel = document.getElementById('tempCol');
-                
-                densSel.innerHTML = '<option value="">-- None --</option>';
-                tempSel.innerHTML = '<option value="">-- None --</option>';
-                
-                headers.forEach(h => {
-                    densSel.add(new Option(h, h));
-                    tempSel.add(new Option(h, h));
-                });
-                
-                // Render column preview table
+
+                // Show Column Preview
                 const previewDiv = document.getElementById('columnPreview');
                 const previewTable = document.getElementById('previewTable');
-                previewTable.innerHTML = '';
-                
-                const thead = document.createElement('thead');
-                let theadHTML = '<tr>';
-                headers.forEach(h => { theadHTML += `<th>${h}</th>`; });
-                theadHTML += '</tr>';
-                thead.innerHTML = theadHTML;
-                previewTable.appendChild(thead);
-                
-                const tbody = document.createElement('tbody');
+                previewTable.querySelector('thead').innerHTML = '';
+                previewTable.querySelector('tbody').innerHTML = '';
+
+                const headerTr = document.createElement('tr');
+                headers.forEach(h => {
+                    const th = document.createElement('th');
+                    th.textContent = h;
+                    headerTr.appendChild(th);
+                });
+                previewTable.querySelector('thead').appendChild(headerTr);
+
+                // Show first 4 data rows (rows 16-19 in original = indices 15-18)
                 for (let i = 15; i < Math.min(19, rows.length); i++) {
-                    const row = rows[i] || [];
-                    let rowHTML = '<tr>';
-                    headers.forEach((h, idx) => {
-                        const val = row[idx] !== undefined ? row[idx] : '';
-                        rowHTML += `<td style="max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${val}</td>`;
-                    });
-                    rowHTML += '</tr>';
+                    const row = rows[i];
+                    if (!row || row.length < 3) continue;
                     const tr = document.createElement('tr');
-                    tr.innerHTML = rowHTML;
-                    tbody.appendChild(tr);
+                    headers.forEach((h, idx) => {
+                        const td = document.createElement('td');
+                        td.textContent = row[idx] || '';
+                        tr.appendChild(td);
+                    });
+                    previewTable.querySelector('tbody').appendChild(tr);
                 }
-                previewTable.appendChild(tbody);
                 previewDiv.style.display = 'block';
-                
-                showStatus("Headers loaded from row 15. Select your columns above, choose Cup Type, then click Run Analysis.");
             }
         });
     });
-}
 
-// Event listeners
-document.getElementById('runBtn').addEventListener('click', runAnalysis);
-document.getElementById('assignBtn').addEventListener('click', assignShifts);
-document.getElementById('resetBtn').addEventListener('click', resetShifts);
-document.getElementById('applySensorLimitsBtn').addEventListener('click', applySensorLimits);
-document.getElementById('applyDiffFilterBtn').addEventListener('click', applyDifferenceStdFilter);
-document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
-document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-document.getElementById('applyTempCompBtn').addEventListener('click', calculateTemperatureCompensation);
+    // Run Analysis button
+    document.getElementById('runBtn').addEventListener('click', runAnalysis);
 
-// Initialize
-renderShiftDefinitions();
-setupAutoColumnDetection();
-console.log('%c[Shell Control Correlation Tool] Ready — row 15 headers, manual column selection, required cup, blank sensor range, top filters.', 'color:#00d4ff');
+    // Shift buttons
+    document.getElementById('assignBtn').addEventListener('click', function() {
+        if (!originalPairedData.length) { alert("Run analysis first"); return; }
+        const active = shiftDefinitions.filter(s => s.start);
+        originalPairedData.forEach(r => { r.shift = assignShift(r.date, active); });
+        currentFilteredData = [...originalPairedData];
+        renderAll();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', resetShifts);
+
+    // UNIFIED FILTER BUTTONS
+    document.getElementById('applyAllFiltersBtn').addEventListener('click', applyAllFilters);
+    document.getElementById('resetAllFiltersBtn').addEventListener('click', resetAllFilters);
+
+    // Initial shift definitions
+    renderShiftDefinitions();
+});
 </script>
 </body>
 </html>
