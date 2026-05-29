@@ -168,18 +168,6 @@
                 <button onclick="resetAllFilters()" class="secondary" style="flex:1; min-width:160px;">Reset All Filters</button>
             </div>
 
-            <!-- Difference Stats + Histogram (inside same card) -->
-            <div id="diffStatsSection" style="margin-top:20px; display:none;">
-                <div class="section-title" style="font-size:0.95rem; margin-bottom:8px;">Difference Statistics (Sensor cSt − Calculated cSt)</div>
-                <div class="metrics" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
-                    <div class="metric"><div class="metric-value" id="diffMean">—</div><div style="font-size:0.75rem;">Mean Diff</div></div>
-                    <div class="metric"><div class="metric-value" id="diffStd">—</div><div style="font-size:0.75rem;">Std Dev</div></div>
-                    <div class="metric"><div class="metric-value" id="diffMedian">—</div><div style="font-size:0.75rem;">Median</div></div>
-                </div>
-                <div style="margin-top:12px; height:130px;">
-                    <canvas id="diffHistogram"></canvas>
-                </div>
-            </div>
         </div>
 
         <!-- Results -->
@@ -271,7 +259,6 @@
             { name: "Shift 3", start: 22 }
         ];
         let scatterChartInstance = null;
-        let diffHistogramInstance = null;
         let currentCupType = "";
 
         function parseCSV(file) {
@@ -490,7 +477,6 @@
                 currentFilteredData = [...pairedData];
                 document.getElementById("resultsSection").style.display = "block";
                 document.getElementById("filtersCard").style.display = "block";
-                document.getElementById("diffStatsSection").style.display = "block";
 
                 renderAll();
 
@@ -505,46 +491,57 @@
 
             const minVal = parseFloat(document.getElementById("sensorMin").value);
             const maxVal = parseFloat(document.getElementById("sensorMax").value);
+            const multiplier = parseFloat(document.getElementById("stdMultiplier").value) || 2;
             const refTempF = parseFloat(document.getElementById("refTempF").value) || 77;
             const A = parseFloat(document.getElementById("compFactorA").value) || 1800;
 
-            currentFilteredData = pairedData.filter(row => {
+            // 1. Start from original paired data and apply sensor range filter
+            let filtered = pairedData.filter(row => {
                 let pass = true;
                 if (!isNaN(minVal) && row.sensor < minVal) pass = false;
                 if (!isNaN(maxVal) && row.sensor > maxVal) pass = false;
                 return pass;
             });
 
+            // 2. Apply statistical ±σ filter on Difference
+            const diffs = filtered.map(r => r.difference).filter(d => d !== null && !isNaN(d));
+            if (diffs.length > 1) {
+                const mean = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+                const std = standardDeviation(diffs);
+                filtered = filtered.filter(row => {
+                    if (row.difference === null || isNaN(row.difference)) return true;
+                    return Math.abs(row.difference - mean) <= multiplier * std;
+                });
+            }
+
+            currentFilteredData = filtered;
+
+            // 3. Apply Arrhenius temperature compensation
             const hasTempData = currentFilteredData.some(r => r.tempF !== null && !isNaN(r.tempF));
 
-            if (hasTempData) {
-                currentFilteredData.forEach(row => {
-                    if (row.tempF !== null && !isNaN(row.tempF)) {
-                        row.compSensor = calculateArrheniusCompensated(row.sensor, row.tempF, refTempF, A);
-                        row.compCst = calculateArrheniusCompensated(row.cst, row.tempF, refTempF, A);
-                        if (row.density !== null && !isNaN(row.density) && row.compCst !== null) {
-                            row.densityTimesComp = row.density * row.compCst;
-                        }
-                    } else {
-                        row.compSensor = null; row.compCst = null; row.densityTimesComp = null;
-                    }
-                    if (row.density !== null && !isNaN(row.density)) {
-                        row.densityTimesSensor = row.density * row.sensor;
+            currentFilteredData.forEach(row => {
+                if (hasTempData && row.tempF !== null && !isNaN(row.tempF)) {
+                    row.compSensor = calculateArrheniusCompensated(row.sensor, row.tempF, refTempF, A);
+                    row.compCst = calculateArrheniusCompensated(row.cst, row.tempF, refTempF, A);
+                    if (row.density !== null && !isNaN(row.density) && row.compCst !== null) {
+                        row.densityTimesComp = row.density * row.compCst;
                     }
                     if (row.compSensor !== null && row.compCst !== null) {
                         row.compDifference = row.compSensor - row.compCst;
                     } else {
                         row.compDifference = null;
                     }
-                });
-            } else {
-                currentFilteredData.forEach(row => {
-                    row.compSensor = null; row.compCst = null; row.compDifference = null; row.densityTimesComp = null;
-                    if (row.density !== null && !isNaN(row.density)) {
-                        row.densityTimesSensor = row.density * row.sensor;
-                    }
-                });
-            }
+                } else {
+                    row.compSensor = null;
+                    row.compCst = null;
+                    row.compDifference = null;
+                    row.densityTimesComp = null;
+                }
+                if (row.density !== null && !isNaN(row.density)) {
+                    row.densityTimesSensor = row.density * row.sensor;
+                }
+            });
+
             renderAll();
         }
 
@@ -602,7 +599,6 @@
             renderScatterPlot();
             renderRawDataTable();
             renderCompensatedDataTable();
-            renderDifferenceStats();
         }
 
         function renderOverallMetrics() {
@@ -707,7 +703,6 @@
                 <th>Date/Time</th><th>Shift</th><th>Cup</th><th>Manual (s)</th>
                 <th>Sensor (cSt)</th><th>Calculated cSt</th>`;
             if (hasDensity) headerHTML += `<th>Density</th><th>Density × Sensor cSt</th>`;
-            if (hasTemp) headerHTML += `<th>Temp (°F)</th>`;
             headerHTML += `<th>Difference</th></tr>`;
             thead.innerHTML = headerHTML;
 
@@ -723,7 +718,6 @@
                     html += `<td>${row.density !== null ? row.density.toFixed(3) : "—"}</td>`;
                     html += `<td>${row.densityTimesSensor !== null ? row.densityTimesSensor.toFixed(1) : "—"}</td>`;
                 }
-                if (hasTemp) html += `<td>${row.tempF !== null ? row.tempF.toFixed(1) : "—"}</td>`;
                 html += `<td>${row.difference.toFixed(1)}</td></tr>`;
                 tr.innerHTML = html;
                 tbody.appendChild(tr);
@@ -747,8 +741,8 @@
             const hasDensity = currentFilteredData.some(r => r.density !== null && r.densityTimesComp !== null);
 
             let headerHTML = `<tr>
-                <th>Date/Time</th><th>Shift</th><th>Cup</th><th>Manual (s)</th>
-                <th>Temp Comp. Sensor cSt</th><th>Temp Comp. Calculated cSt</th>`;
+                <th>Date/Time</th><th>Shift</th><th>Cup</th><th>Temperature (°F)</th>
+                <th>Temp Comp. Sensor cSt</th><th>Cup Calc cSt Temp Comp.</th>`;
             if (hasDensity) headerHTML += `<th>Density × Temp Comp. cSt</th>`;
             headerHTML += `<th>Temp Comp. Difference</th></tr>`;
             thead.innerHTML = headerHTML;
@@ -758,7 +752,7 @@
                 let html = `<td>${row.date || ""}</td>
                     <td><strong>${row.shift || "Unassigned"}</strong></td>
                     <td>${row.cupType}</td>
-                    <td>${row.manual.toFixed(2)}</td>
+                    <td>${row.tempF !== null ? row.tempF.toFixed(1) : "—"}</td>
                     <td>${row.compSensor !== null ? row.compSensor.toFixed(1) : "—"}</td>
                     <td>${row.compCst !== null ? row.compCst.toFixed(1) : "—"}</td>`;
                 if (hasDensity) {
@@ -767,45 +761,6 @@
                 html += `<td>${row.compDifference !== null ? row.compDifference.toFixed(1) : "—"}</td></tr>`;
                 tr.innerHTML = html;
                 tbody.appendChild(tr);
-            });
-        }
-
-        function renderDifferenceStats() {
-            const diffs = currentFilteredData.map(r => r.difference).filter(d => d !== null && !isNaN(d));
-            if (!diffs.length) return;
-            const mean = diffs.reduce((a,b)=>a+b,0) / diffs.length;
-            const std = standardDeviation(diffs);
-            const median = getMedian(diffs);
-            document.getElementById("diffMean").textContent = mean.toFixed(1);
-            document.getElementById("diffStd").textContent = std.toFixed(1);
-            document.getElementById("diffMedian").textContent = median.toFixed(1);
-
-            const canvas = document.getElementById("diffHistogram");
-            if (diffHistogramInstance) diffHistogramInstance.destroy();
-            const minD = Math.min(...diffs);
-            const maxD = Math.max(...diffs);
-            const binCount = 12;
-            const binSize = (maxD - minD) / binCount;
-            const bins = Array(binCount).fill(0);
-            diffs.forEach(d => {
-                let idx = Math.floor((d - minD) / binSize);
-                if (idx >= binCount) idx = binCount-1; if (idx < 0) idx = 0;
-                bins[idx]++;
-            });
-            diffHistogramInstance = new Chart(canvas, {
-                type: "bar",
-                data: {
-                    labels: bins.map((_,i) => (minD + i*binSize).toFixed(0)),
-                    datasets: [{ label: "Difference Distribution", data: bins, backgroundColor: "#00d4ff", borderColor: "#0099bb", borderWidth:1 }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: {
-                        x: { title: { display: true, text: "Difference (cSt)", color: "#aaa" }, grid: { color: "#333" }, ticks: { color: "#aaa", maxTicksLimit:8 } },
-                        y: { title: { display: true, text: "Count", color: "#aaa" }, grid: { color: "#333" }, ticks: { color: "#aaa" } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
             });
         }
 
