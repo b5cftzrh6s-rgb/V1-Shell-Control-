@@ -50,7 +50,7 @@
 
         <!-- 1. Upload + Column Selection -->
         <div class="card">
-            <div class="section-title">1. Upload Raw Export (Headers exactly in Row 15)</div>
+            <div class="section-title">1. Upload Raw Data</div>
             <input type="file" id="fileInput" accept=".csv" style="margin-bottom:12px;">
             
             <div id="columnSelectors" style="display:none; margin-top:16px;">
@@ -97,7 +97,7 @@
 
             <!-- Live Column Preview -->
             <div id="previewSection" style="display:none; margin-top:16px;">
-                <div class="section-title" style="font-size:0.95rem;">Column Preview (first 4 data rows after row 15)</div>
+                <div class="section-title" style="font-size:0.95rem;">Column Preview (first 4 data rows)</div>
                 <div style="overflow-x:auto;">
                     <table id="previewTable" style="font-size:0.8rem;"></table>
                 </div>
@@ -265,12 +265,12 @@
                     complete: function(results) {
                         const rows = results.data;
                         if (rows.length < 16) {
-                            reject("File must have at least 16 rows (headers in row 15).");
+                            reject("File must have at least 16 rows. Please ensure your raw export file has the correct structure (headers followed by data rows).");
                             return;
                         }
                         const headerRow = rows[14];
                         if (!headerRow || headerRow.length < 3) {
-                            reject("Could not read at least 3 columns from row 15.");
+                            reject("Could not read at least 3 columns from the header row. Please verify your file format.");
                             return;
                         }
                         const headers = headerRow.map(h => (h || "").toString().trim());
