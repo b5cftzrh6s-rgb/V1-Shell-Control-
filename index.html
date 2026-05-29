@@ -26,14 +26,17 @@
         select, input { width: 100%; padding: 10px; background: #1a1a1a; color: #fff; border: 1px solid #333; border-radius: 8px; font-size: 0.95rem; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        table { width: 100%; border-collapse: collapse; background: #1a1a1a; font-size: 0.9rem; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #333; }
-        th { background: #222; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; background: #1a1a1a; font-size: 0.85rem; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #333; white-space: nowrap; }
+        th { background: #222; font-weight: 600; font-size: 0.8rem; }
+        tr:hover { background: #1f1f1f; }
         .status { padding: 10px 14px; background: #1a1a1a; border-radius: 8px; margin: 12px 0; font-size: 0.9rem; }
         .shift-card { background: #1a1a1a; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
         .chart-container { position: relative; height: 420px; margin: 16px 0; }
         details summary { cursor: pointer; padding: 8px 0; color: #00d4ff; font-weight: 600; }
-        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; align-items: end; }
+        .filter-group { background: #1a1a1a; border-radius: 10px; padding: 12px; border: 1px solid #333; }
+        .filter-group-title { font-size: 0.8rem; color: #00d4ff; font-weight: 600; margin-bottom: 8px; display: block; }
         .stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #333; }
         .stat-row:last-child { border-bottom: none; }
         .warning { color: #ffaa00; font-size: 0.85rem; }
@@ -115,34 +118,48 @@
             
             <div class="filter-grid">
                 <!-- Sensor Range Filter -->
-                <div>
-                    <label style="font-size:0.85rem; color:#aaa;">Sensor Range Min (cSt)</label>
-                    <input type="number" id="sensorMin" placeholder="Leave blank for no min">
-                </div>
-                <div>
-                    <label style="font-size:0.85rem; color:#aaa;">Sensor Range Max (cSt)</label>
-                    <input type="number" id="sensorMax" placeholder="Leave blank for no max">
+                <div class="filter-group">
+                    <span class="filter-group-title">Sensor Range Filter (cSt)</span>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                            <label style="font-size:0.75rem; color:#aaa;">Min</label>
+                            <input type="number" id="sensorMin" placeholder="No min">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; color:#aaa;">Max</label>
+                            <input type="number" id="sensorMax" placeholder="No max">
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Statistical Std Dev Filter -->
-                <div>
-                    <label style="font-size:0.85rem; color:#aaa;">Difference ± Std Dev Multiplier (σ)</label>
-                    <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5">
-                    <button onclick="applyStatisticalFilter()" class="secondary" style="margin-top:6px; padding:8px 14px; font-size:0.85rem; width:auto;">Apply ±σ Filter</button>
+                <div class="filter-group">
+                    <span class="filter-group-title">Statistical Outlier Filter</span>
+                    <label style="font-size:0.75rem; color:#aaa;">Difference ±σ Multiplier</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="number" id="stdMultiplier" value="2" step="0.5" min="0.5" style="flex:1;">
+                        <button onclick="applyStatisticalFilter()" class="secondary" style="padding:8px 14px; font-size:0.8rem; white-space:nowrap;">Apply ±σ</button>
+                    </div>
+                    <div style="font-size:0.7rem; color:#888; margin-top:4px;">Filters points outside mean ± multiplier × std dev of Difference</div>
                 </div>
 
                 <!-- Arrhenius Temperature Compensation -->
-                <div>
-                    <label style="font-size:0.85rem; color:#aaa;">Reference Temperature (°F)</label>
-                    <input type="number" id="refTempF" value="77" step="1">
-                </div>
-                <div>
-                    <label style="font-size:0.85rem; color:#aaa;">Compensation Factor A (Arrhenius)</label>
-                    <div style="display:flex; gap:6px;">
-                        <input type="number" id="compFactorA" value="1800" step="10" style="flex:1;">
-                        <button onclick="autoFitArrheniusA()" class="secondary" style="padding:8px 12px; font-size:0.8rem; white-space:nowrap;">Auto-fit A</button>
+                <div class="filter-group">
+                    <span class="filter-group-title">Temperature Compensation (Arrhenius)</span>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                        <div>
+                            <label style="font-size:0.75rem; color:#aaa;">Ref Temp (°F)</label>
+                            <input type="number" id="refTempF" value="77" step="1">
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; color:#aaa;">Factor A</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="number" id="compFactorA" value="1800" step="10" style="flex:1;">
+                                <button onclick="autoFitArrheniusA()" class="secondary" style="padding:6px 10px; font-size:0.75rem; white-space:nowrap;">Auto-fit</button>
+                            </div>
+                        </div>
                     </div>
-                    <div style="font-size:0.72rem; color:#666; margin-top:3px;">Using Arrhenius model (Rheonics recommended). Auto-fit uses ln(visc) vs 1/T regression on your data.</div>
+                    <div style="font-size:0.7rem; color:#888;">Uses Arrhenius model. Auto-fit runs regression on your data.</div>
                 </div>
             </div>
 
